@@ -1,0 +1,24 @@
+cflags = @@CFLAGS@@
+ldflags = @@LDFLAGS@@
+output = @@OUT@@
+
+rule cc
+	description = Compile ${in}
+	command = gcc -o ${out} -c ${cflags} ${in}
+
+rule ld
+	description = Compile ${in}
+	command = gcc -o ${out} ${ldflags} ${in}
+
+rule run
+	description = Run '${in}'
+	command = ./${in}
+
+build test: phony || @@RUN_TESTS@@
+default test
+
+@@TESTS_BUILD@@
+@@TESTS_TARGET@@
+@@OBJECTS_BUILD@@
+
+# vim: set syntax=ninja:

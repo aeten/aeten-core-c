@@ -1,0 +1,104 @@
+#!/bin/bash
+
+_VERSION_=0.1
+
+WORKING_DIR=$(dirname ${0})
+PROJECT_NAME=$(basename $(realpath $(dirname ${0})))
+
+$(${WORKING_DIR}/cots/aeten-cli/aeten-ads init - -- "${@}" << EOF
+#NAME: $(basename ${0})
+#TITLE:  ${PROJECT_NAME^^} $(basename ${0}) manual
+#VERSION: ${_VERSION_}
+#SHORT_DESCRIPTION: Æten core library building configuration script.
+#DESCRIPTION: Configures and generates building file (Ninja or GNU Make).
+builder <builder>: The target builder tool (ninja or make).
+prefix <prefix-path>: The prefix path for installation (\"/usr/local\" by default).
+out <directory>: The output build directory (${WORKING_DIR}/build by default).
+conf <config-file>: The configuration file path (bash file to source, \"config.sh\" by default).
+warning <list>: The warning to activate (\"error\" is the default one).
+verbose: Verbose build output.
+version|V: Shows ${PROJECT_NAME} version.
+EOF
+)
+
+: ${PREFIX:=/usr/local}
+: ${WARNING:=error}
+: ${CONFIG:=${WORKING_DIR}/config.sh}
+: ${OUT:=${WORKING_DIR}/build}
+: ${VERSION:=false}
+: ${VERBOSE:=false}
+if [ ${VERBOSE} = true ]; then
+	VERBOSE=-v
+else
+	VERBOSE=
+fi
+
+IQUOTES='src/aeten/ src/aeten/concurrent'
+LDFLAGS+='-lpthread'
+
+${VERSION} && { echo ${PROJECT_NAME}: version ${_VERSION_}; exit 0; }
+
+AETEN_MAKE=${WORKING_DIR}/cots/aeten-make
+AETEN_CLI=${WORKING_DIR}/cots/aeten-cli/aeten-cli.sh
+
+[ -f "${CONF}" ] && . "${CONF}"
+
+INSTALL_LIB_DIR="${PREFIX}/lib"
+INSTALL_BIN_DIR="${PREFIX}/bin"
+
+$(${AETEN_CLI} import check fatal confirm query)
+
+: ${BUILDER:=$(confirm --no 'Use Ninja instead of GNU Make?' && echo ninja || echo make)}
+: ${PREFIX:=$(query 'Enter the prefix installation path.')}
+
+TEMPLATE=build-template.ninja
+case "${BUILDER}" in
+	ninja)
+		template=${TEMPLATE}
+		build_script=build.ninja;;
+	make)
+		template=build.mk
+		build_script=makefile
+		check -m 'Generates GNU Make template' "${AETEN_MAKE}/ninja2make ${WORKING_DIR}/${TEMPLATE}|sed 's,@@check@@,./${AETEN_CLI} check ${VERBOSE},g' > ${WORKING_DIR}/${template}";;
+	*) fatal 'Builder must be "ninja" or "make"';;
+esac
+
+check="${AETEN_CLI} check"
+add_prefix="${AETEN_MAKE}/generate-builder add-prefix"
+replace_suffix="${AETEN_MAKE}/generate-builder replace-suffix"
+target="${AETEN_MAKE}/generate-builder target --builder ${BUILDER}"
+
+COMMANDS=$(. ${AETEN_CLI} && __aeten_cli_api ${AETEN_CLI} | grep -v '^import$')
+LINKS=$(${add_prefix} ${INSTALL_BIN_DIR}/ ${COMMANDS})
+SRC=$(find src/ test/ -type f -name \*.c)
+OBJ=$(${replace_suffix} .c .o $(${add_prefix} \\\\\${output}/ ${SRC}))
+
+OBJECTS_BUILD="$(for src in ${SRC}; do
+	${target} --command cc --depends ${src} \\\${output}/$(dirname ${src})/$(basename --suffix=.c ${src}).o;
+done|sed '$ ! s/$/\\/')"
+RUN_TESTS="$(for ut_src in $(find test -name \*.c); do
+	ut=$(basename ${ut_src//_/-} .c);
+	echo run-$ut;
+done|sed '$ ! s/$/\\/')"
+TESTS_BUILD="$(for ut_src in $(find test -name \*.c); do
+	ut=$(basename ${ut_src//_/-} .c);
+	${target} --command ld $(${add_prefix} '--depends '  "${OBJ}") \\\${output}/test/${ut};
+done|sed '$ ! s/$/\\/')"
+TESTS_TARGET="$(for ut_src in $(find test -name \*.c); do
+	ut=$(basename ${ut_src//_/-} .c);
+	${target} --command run --depends \\\${output}/test/${ut} run-${ut};
+done|sed '$ ! s/$/\\/')"
+
+check -m "Generates ${build_script}" -v ${AETEN_MAKE}/generate-builder -t ${WORKING_DIR}/${template} "${@}" '>' ${WORKING_DIR}/${build_script} <<EOF
+CFLAGS = ${CFLAGS} $(${add_prefix} -W ${WARNING}) $(${add_prefix} -iquote\  ${IQUOTES})
+LDFLAGS = ${LDFLAGS}
+INSTALL_LIB_DIR = ${LIB_DIR}
+OBJECTS_BUILD = ${OBJECTS_BUILD}
+TESTS_BUILD = ${TESTS_BUILD}
+TESTS_TARGET = ${TESTS_TARGET}
+RUN_TESTS = ${RUN_TESTS}
+OBJ = $(echo ${OBJ})
+OUT = ${OUT}
+EOF
+
+[ ${BUILDER} = make ] && rm ${template}
