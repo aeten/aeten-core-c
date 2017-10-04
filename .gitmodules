@@ -1,0 +1,12 @@
+[submodule "cots/aeten-make"]
+	path = cots/aeten-make
+	url = git@gitlab.com:aeten/aeten-make.git
+	branch = master
+	sparse-checkout = generate-builder\n \
+	                  ninja2make
+[submodule "cots/aeten-cli"]
+	path = cots/aeten-cli
+	url = git@gitlab.com:aeten/aeten-cli.git
+	branch = master
+	sparse-checkout = aeten-cli.sh\n \
+	                  aeten-ads
