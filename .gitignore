@@ -1,4 +1,7 @@
+.description
+config.sh
 .ninja_*
 build.ninja
 build/
+generated
 makefile

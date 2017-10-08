@@ -1,0 +1,9 @@
+@startuml
+!include Queue.puml
+namespace aeten.collection {
+	interface BlockingQueue<T> extends Queue {
+		unsigned put(T element)
+		unsigned take(T element)
+	}
+}
+@enduml

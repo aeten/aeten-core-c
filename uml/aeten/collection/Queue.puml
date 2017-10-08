@@ -1,0 +1,10 @@
+@startuml
+!include Collection.puml
+namespace aeten.collection {
+	interface Queue<T> extends Collection {
+		unsigned offer(T element)
+		unsigned poll(T element)
+		unsigned peek(T element)
+	}
+}
+@enduml

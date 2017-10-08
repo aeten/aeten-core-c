@@ -1,24 +1,38 @@
 cflags = @@CFLAGS@@
 ldflags = @@LDFLAGS@@
+puml = @@PLANTUML@@
+pumlpath = @@PUML_PATH@@
+pumlflags = @@PUML_FLAGS@@
+JAVA = @@JAVA@@
+CC = @@CC@@
+LD = @@LD@@
 output = @@OUT@@
+generated = @@GENERATED@@
+XMI2C = @@XMI2C@@
 
 rule cc
 	description = Compile ${in}
-	command = gcc -o ${out} -c ${cflags} ${in}
+	command = ${CC} -o ${out} -c ${cflags} ${in}
 
 rule ld
-	description = Compile ${in}
-	command = gcc -o ${out} ${ldflags} ${in}
+	description = Link objects into ${out}
+	command = ${LD} -o ${out} ${ldflags} ${in}
 
 rule run
 	description = Run '${in}'
 	command = ./${in}
 
+rule puml2xmi
+	description = Convert UML class diagram '${in}' into XMI
+	command = ${JAVA} -Djava.awt.headless=true ${pumlpath} -jar ${puml} -ofile ${out} -failfast2 -txmi:star ${pumlflags} ${in} || { rm -f ${out}; false; }
+
+rule xmi2c
+	description = Generate C file '${out}' from XMI
+	command = ${XMI2C} --mode simple --in ${in} --out ${out}
+
 build test: phony || @@RUN_TESTS@@
 default test
 
-@@TESTS_BUILD@@
-@@TESTS_TARGET@@
-@@OBJECTS_BUILD@@
+@@BUILD_TARGETS@@
 
 # vim: set syntax=ninja:

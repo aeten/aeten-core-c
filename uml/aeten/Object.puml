@@ -1,0 +1,9 @@
+@startuml
+namespace aeten {
+	interface Object<T> {
+		+ delete()
+		+ T clone()
+		+ copy(T dest)
+	}
+}
+@enduml

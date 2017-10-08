@@ -1,0 +1,11 @@
+@startuml
+namespace aeten.collection {
+	interface Iterator<T> {
+		+boolean has_next()
+		+T next()
+		+set(T element)
+		+add(T element)
+		+remove(T element)
+	}
+}
+@enduml

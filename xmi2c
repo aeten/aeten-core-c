@@ -1,0 +1,357 @@
+#!/bin/bash
+
+CURDIR=$(dirname "${0}")
+AETEN_CLI_DIR=${CURDIR}/cots/aeten-cli
+
+PROJECT_NAME=$(sed -n 's/^project: //p' .description)
+TAG=$(sed -n 's/^tag: //p' .description)
+DESCRIPTION=$(sed -n 's/^description: //p' .description)
+
+$(${AETEN_CLI_DIR}/aeten-ads init - -- "${@}" << EOF
+#NAME: $(basename ${0})
+#TITLE:  ${PROJECT_NAME^^} $(basename ${0}) manual
+#VERSION: ${TAG}
+#SHORT_DESCRIPTION: Æten core library XMI to C files generation.
+#DESCRIPTION: Generates C file (header and a source skeleton) from UML XMI descriplion file.
+mode <mode>: The generation mode, _simple_ support only one parent per interface whereas _complete_ support several and provides castable ojects (ie. cast a list to iterable).
+!in <file>: The input UML XMI file.
+!out <file>: The output file must be formed of *.h for header or *.c for c file skeleton.
+version|V: Shows ${PROJECT_NAME} version.
+EOF
+)
+
+: ${MODE:=complete}
+case "$MODE" in
+	simple) ;;
+	complete) echo 'Complete mode is not yet supported' >&2; exit 1;;
+	*)        echo "Invalid mode '${MODE}'" >&2; exit 1;;
+esac
+
+XMI="${IN}"
+[ -f "$XMI" ] || { echo "Input XMI file '${XMI}' is not a file"; exit 1; }
+
+
+CLASSES=$(xmlstarlet el -v "${XMI}" | awk '/Class\[/ {
+	match($0, /@name='"'([^']*)'"'/, classname);
+	match($0, /@namespace='"'([^']*)'"'/, namespace);
+	match($0, /@xmi.id='"'([^']*)'"'/, id);
+	match($0, /@isInterface='"'([^']*)'"'/, is_interface);
+	
+	if (is_interface[1] == "true") {
+		classtype = "interface";
+	} else {
+		classtype = "class";
+	}
+	if (classname[1] !~ /\$\$\$/) {print classtype ":" id[1] ":" namespace[1] ":" classname[1];}
+}')
+
+CLASS=$(echo "${CLASSES//* /}"|tail -n 1)
+OBJECT=$(echo "${CLASSES}"|awk -F: '{if (($3 == "aeten") && ($4 == "Object")) {print}}')
+CLASS_TYPE=${CLASS/:*/}
+CLASS_ID=${CLASS/${CLASS_TYPE}:/}
+CLASS_ID=${CLASS_ID/:*/}
+NAMESPACE=${CLASS/${CLASS_TYPE}:${CLASS_ID}:/}
+NAMESPACE=${NAMESPACE/:*/}
+CLASS_NAME=${CLASS//*:/}
+C_CLASS=${NAMESPACE//./_}__${CLASS_NAME}
+
+
+visit_class() {
+	local _visitor="${1}_class_visitor"; shift
+	local _class="$1"; shift
+	eval ${_visitor} "${_class}"
+}
+
+class_visitor_init='
+	local class=$1
+	local classtype=${class/:*/}
+	local classid=${class/${classtype}:/}
+	classid=${classid/:*/}
+	local namespace=${class/${classtype}:${classid}:/}
+	namespace=${namespace/:*/}
+	local classname=${class//*:/}
+	local c_class=${namespace//./_}__${classname}
+'
+methods_class_visitor_init='
+	methods=$(xmlstarlet sel -B -t -v "//UML:Class[@xmi.id='"'"'${classid}'"'"']/UML:Classifier.feature/UML:Operation/@name" "${XMI}"|sed "s/&lt;/</g;s/&gt;/>/g"; true)
+'
+attributes_class_visitor_init='
+	attributes=$(xmlstarlet sel -B -t -v "//UML:Class[@xmi.id='"'"'${classid}'"'"']/UML:Classifier.feature/UML:Attribute/@name" "${XMI}"|sed "s/&lt;/</g;s/&gt;/>/g"; true)
+'
+
+
+visit_method() {
+	local _visitor="${1}_method_visitor"; shift
+	local _class="$1"; shift
+	local _method=$(echo "$1"|sed 's/&lt;/</g;s/&gt;/>/g')
+	eval ${_visitor} "${_class}" $(echo "${_method}" | gawk '{
+		match($0, /(([^ ]+) +)?([^ (]+) *\( *([^)]*)? *\) *(«[^»]»)?/, signature);
+		if (signature[2] == "") {
+			type = "void";
+		} else {
+			type = signature[2];
+		}
+		name = signature[3];
+		args = signature[4];
+		stereotype = signature[5];
+		print "'"'"'" name "'"' '"'" type "'"' '"'" args "'"' '"'" stereotype "'"'"'";
+	}')
+}
+
+method_visitor_init='
+	local _class="${1}"; shift
+	local _name="${1}"; shift
+	local _type="${1}"; shift
+	local _args="${1}"; shift
+	local _stereotype="${1}"; shift
+	_type=${_type/\[\]/*}
+	if [ "${_name}" = "${CLASS_NAME}" ]; then
+		_stereotype=constructor
+	fi
+	if [ "${_stereotype}" = constructor ]; then
+		_type="${c_class}*"
+	else
+		if [ -z "${_args}" ]; then
+			_args="${c_class}*"
+		else
+			_args="${c_class}*, ${_args}";
+		fi
+	fi
+'
+
+typedef_method_visitor() {
+	eval "${method_visitor_init}"
+	[ "${_stereotype}" = "constructor" ] && return
+	echo -e "typedef ${_type} (*${_class}__${_name})(${_args});"
+}
+
+callback_method_visitor() {
+	eval "${method_visitor_init}"
+	[ "${_stereotype}" = "constructor" ] && return
+	echo -e "\t${_class}__${_name} ${_name};"
+}
+
+# TODO factorize with definition_method_visitor()
+declaration_method_visitor() {
+	eval "${method_visitor_init}"
+	local _cls
+	local _function
+	local _static
+
+	if [ "${_stereotype}" = constructor ]; then
+		_function=${C_CLASS}
+	else
+		if [ ${CLASS_TYPE} = interface ]; then
+			_function=${C_CLASS}__${_name}
+		else
+			_function=${_name}
+			_static='static '
+		fi
+	fi
+	echo "${_static}${_type} ${_function}($(echo "${_args}"|sed "s/^${c_class}\\*/${C_CLASS}* self/"));"
+}
+
+# TODO factorize with declaration_method_visitor()
+definition_method_visitor() {
+	eval "${method_visitor_init}"
+	local _cls
+	local _function
+	local _static
+
+	echo
+	if [ "${_stereotype}" = constructor ]; then
+		_function=${C_CLASS}
+	else
+		if [ ${CLASS_TYPE} = interface ]; then
+			_function=${C_CLASS}__${_name}
+		else
+			_function=${_name}
+			_static='static '
+		fi
+	fi
+	echo "${_static}${_type} ${_function}($(echo "${_args}"|sed "s/^${c_class}\\*/${C_CLASS}* self/")) {"
+	if [ "${_stereotype}" = constructor ]; then
+		echo -e "\t${C_CLASS}* self = malloc(sizeof(${C_CLASS}));"
+		echo -e '\tif(self == NULL) {\n\t\treturn NULL;\n\t}'
+		for _cls in ${CLASS_HIERARCHY}; do
+			visit_class constructor_definition ${_cls}
+		done
+	fi
+	echo -e '\t// TODO: Implement'
+	if [ "${_stereotype}" = constructor ]; then
+		echo -e '\treturn self;'
+	fi
+	echo '}'
+}
+
+constructor_definition_method_visitor() {
+	eval "${method_visitor_init}"
+	if [ "${_stereotype}" != constructor ]; then
+		if [ ${CLASS_TYPE} = interface ]; then
+			_function=${C_CLASS}__${_name}
+		else
+			_function=${_name}
+		fi
+		echo -e "\tself->${_name} = ${_function};"
+	fi
+}
+
+include_class_visitor() {
+	eval "${class_visitor_init}"
+	echo '#include "'${namespace//./\/}/${classname}.h'"'
+}
+
+typedef_class_visitor() {
+	eval "${class_visitor_init}"
+	eval "${methods_class_visitor_init}"
+	IFS=$'\n'
+	for method in ${methods}; do
+		visit_method typedef "${c_class}" "${method}"
+	done
+	unset IFS
+}
+
+attributes_class_visitor() {
+	eval "${class_visitor_init}"
+	eval "${methods_class_visitor_init}"
+	eval "${attributes_class_visitor_init}"
+
+	echo -e "\t// ${c_class}"
+	IFS=$'\n'
+	for method in ${methods}; do
+		visit_method callback "${c_class}" "${method}"
+	done
+	for attribute in ${attributes}; do
+		echo "${attribute}"|awk -F' *: *' '{sub("\\[\\]","*",$2); print "\t" $2 " " $1 ";"}'
+	done
+	unset IFS
+}
+
+method_declaration_class_visitor() {
+	eval "${class_visitor_init}"
+	eval "${methods_class_visitor_init}"
+	echo "// ${c_class}"
+	IFS=$'\n'
+	for method in ${methods}; do
+		visit_method declaration "${c_class}" "${method}"
+	done
+	unset IFS
+}
+
+method_definition_class_visitor() {
+	eval "${class_visitor_init}"
+	eval "${methods_class_visitor_init}"
+	echo -e "\n\n// ${c_class} {{{"
+	IFS=$'\n'
+	for method in ${methods}; do
+		visit_method definition "${c_class}" "${method}"
+	done
+	unset IFS
+	echo -e "// }}} ${c_class}"
+}
+
+constructor_definition_class_visitor() {
+	eval "${class_visitor_init}"
+	eval "${methods_class_visitor_init}"
+	echo -e "\t// ${c_class}"
+	IFS=$'\n'
+	for method in ${methods}; do
+		visit_method constructor_definition "${c_class}" "${method}"
+	done
+	unset IFS
+}
+
+get_parents() {
+	local class=$1
+	local id=$(echo ${class}|cut -d : -f 2)
+	local parents=$(xmlstarlet sel -B -t -v "//UML:Generalization[@child='${id}']/@parent" "${XMI}";true)
+	if [ $MODE} = 'simple' ]; then
+		set -- ${parents}
+		[ -gt 1 ${#} ] && echo 'The simple mode support only one parent per interface' >&2 && exit 1
+	fi
+	for id in ${parents}; do
+		class=$(echo ${CLASSES}|awk -F: 'BEGIN{ RS = " " } $2 ~ /'${id}'/ { print $0 }')
+		echo $class
+		get_parents $class
+	done
+}
+
+header_class_visitor() {
+	eval "${class_visitor_init}"
+	local cls
+
+	cat - <<EOF
+#ifndef _${c_class^^}_H
+#define _${c_class^^}_H
+
+#include <stdlib.h>
+
+EOF
+	for cls in ${CLASSES}; do
+		if [ "${cls}" != "${CLASS}" ]; then
+			visit_class include ${cls}
+		fi
+	done
+	echo
+	echo "typedef struct _${c_class} ${c_class};"
+	echo
+	visit_class typedef ${cls}
+	echo
+	echo "struct _${c_class} {"
+
+	for cls in ${CLASS_HIERARCHY}; do
+		visit_class attributes ${cls}
+	done
+	echo '};'
+	echo "#endif // _${c_class^^}_H"
+}
+
+c_source_class_visitor() {
+	eval "${class_visitor_init}"
+	local cls
+
+	for cls in ${CLASSES}; do
+		if [ "${cls}" = "${CLASS}" ]; then
+			visit_class include ${cls}
+			echo
+		fi
+	done
+
+	if [ ${classtype} = class ]; then
+		for cls in ${CLASS_HIERARCHY}; do
+			if [ "${cls}" != "${CLASS}" ]; then
+				visit_class method_declaration ${cls}
+			fi
+		done
+	fi
+
+	for cls in ${CLASSES}; do
+		if [ "${cls}" = "${CLASS}" ]; then
+			visit_class method_definition ${cls}
+		fi
+	done
+
+	if [ ${classtype} = class ]; then
+		for cls in ${CLASS_HIERARCHY}; do
+			if [ "${cls}" != "${CLASS}" ]; then
+				visit_class method_definition ${cls}
+			fi
+		done
+	fi
+}
+
+CLASS_HIERARCHY=$(echo -e "${OBJECT}\n$(get_parents ${CLASS}|tac)\n${CLASS}"|uniq)
+for cls in ${CLASSES}; do
+	if [ "${cls}" = "${CLASS}" ]; then
+		case "${OUT}" in
+			*.c) out=c_source;;
+			*.h) out=header;;
+			*)   echo "Invalid output file extension for '${OUT}'" >&2; exit 1;;
+		esac
+		visit_class ${out} ${cls} > "${OUT}" || {
+			rm -f "${OUT}"
+			exit 1
+		}
+	fi
+done
+

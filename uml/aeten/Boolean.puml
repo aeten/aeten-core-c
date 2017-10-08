@@ -1,0 +1,6 @@
+@startuml
+enum aeten.lang.Boolean {
+	FALSE
+	TRUE
+}
+@enduml

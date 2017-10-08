@@ -1,21 +1,47 @@
 #!/bin/bash
 
-_VERSION_=0.1
+set -e
 
-WORKING_DIR=$(dirname ${0})
-PROJECT_NAME=$(basename $(realpath $(dirname ${0})))
+CURDIR=$(dirname "${0}")
+AETEN_MAKE=${CURDIR}/cots/aeten-make
+AETEN_CLI_DIR=${CURDIR}/cots/aeten-cli
+AETEN_CLI=${AETEN_CLI_DIR}/aeten-cli.sh
 
-$(${WORKING_DIR}/cots/aeten-cli/aeten-ads init - -- "${@}" << EOF
+# If git repository
+DESCRIPTION=$(git describe --long --dirty=-* --all --always 2>/dev/null)
+if [ -n "${DESCRIPTION}" ]; then
+	PROJECT_NAME=$(basename "$(realpath "${CURDIR}")")
+	TAG=$(git describe --tags 2>/dev/null; true)
+	DESCRIPTION=${DESCRIPTION/*\//}
+	: ${TAG:=0}
+	: ${DESCRIPTION:=0}
+	cat - > .description <<EOF
+project: ${PROJECT_NAME}
+tag: ${TAG}
+description: ${DESCRIPTION}
+EOF
+# Not a git repository
+else
+	PROJECT_NAME=$(sed -n 's/^project: //p' .description)
+	TAG=$(sed -n 's/^tag: //p' .description)
+	DESCRIPTION=$(sed -n 's/^description: //p' .description)
+fi
+
+$(${AETEN_CLI_DIR}/aeten-ads init - -- "${@}" << EOF
 #NAME: $(basename ${0})
 #TITLE:  ${PROJECT_NAME^^} $(basename ${0}) manual
-#VERSION: ${_VERSION_}
+#VERSION: ${TAG}
 #SHORT_DESCRIPTION: Æten core library building configuration script.
 #DESCRIPTION: Configures and generates building file (Ninja or GNU Make).
-builder <builder>: The target builder tool (ninja or make).
-prefix <prefix-path>: The prefix path for installation (\"/usr/local\" by default).
-out <directory>: The output build directory (${WORKING_DIR}/build by default).
-conf <config-file>: The configuration file path (bash file to source, \"config.sh\" by default).
-warning <list>: The warning to activate (\"error\" is the default one).
+builder <builder>: The target builder tool, _ninja_ or _make_.
+prefix <prefix-path>: The prefix path for installation, _/usr/local_ by default.
+out <directory>: The output build directory, _${CURDIR}/build_ by default.
+conf <config-file>: The configuration bash file path to source, _config.sh_ by default.
+plantuml <jar-file>: The PlantUML jar file path.
+object-model|M <model>: The object model generation mode, _simple_ support only one parent per interface whereas _complete_ support several and provides castable ojects (ie. cast a list to iterable).
+generic-replacement|R <replacement>: The parameterized type replacement, _aeten\\_\\_Object\*_ by default (may be _void\*_ for example).
+gcc <gcc-exec-file>: The GCC executable file path.
+warning <list>: The warning flags to activate, _all_ and _error_ by default.
 verbose: Verbose build output.
 version|V: Shows ${PROJECT_NAME} version.
 EOF
@@ -23,8 +49,9 @@ EOF
 
 : ${PREFIX:=/usr/local}
 : ${WARNING:=error}
-: ${CONFIG:=${WORKING_DIR}/config.sh}
-: ${OUT:=${WORKING_DIR}/build}
+: ${CONFIG:=${CURDIR}/config.sh}
+: ${OUT:=${CURDIR}/build}
+: ${GENERIC_REPLACEMENT:=aeten__Object*}
 : ${VERSION:=false}
 : ${VERBOSE:=false}
 if [ ${VERBOSE} = true ]; then
@@ -33,15 +60,12 @@ else
 	VERBOSE=
 fi
 
-IQUOTES='src/aeten/ src/aeten/concurrent'
+IQUOTES='src/ generated/interface/ test/'
 LDFLAGS+='-lpthread'
 
-${VERSION} && { echo ${PROJECT_NAME}: version ${_VERSION_}; exit 0; }
+${VERSION} && { echo ${PROJECT_NAME}: version ${TAG}; exit 0; }
 
-AETEN_MAKE=${WORKING_DIR}/cots/aeten-make
-AETEN_CLI=${WORKING_DIR}/cots/aeten-cli/aeten-cli.sh
-
-[ -f "${CONF}" ] && . "${CONF}"
+[ -f "${CONFIG}" ] && . "${CONFIG}"
 
 INSTALL_LIB_DIR="${PREFIX}/lib"
 INSTALL_BIN_DIR="${PREFIX}/bin"
@@ -50,6 +74,7 @@ $(${AETEN_CLI} import check fatal confirm query)
 
 : ${BUILDER:=$(confirm --no 'Use Ninja instead of GNU Make?' && echo ninja || echo make)}
 : ${PREFIX:=$(query 'Enter the prefix installation path.')}
+: ${PLANTUML:=$(query 'Enter the plantuml jar path.')}
 
 TEMPLATE=build-template.ninja
 case "${BUILDER}" in
@@ -59,46 +84,94 @@ case "${BUILDER}" in
 	make)
 		template=build.mk
 		build_script=makefile
-		check -m 'Generates GNU Make template' "${AETEN_MAKE}/ninja2make ${WORKING_DIR}/${TEMPLATE}|sed 's,@@check@@,./${AETEN_CLI} check ${VERBOSE},g' > ${WORKING_DIR}/${template}";;
+		check -m 'Generates GNU Make template' "${AETEN_MAKE}/ninja2make ${CURDIR}/${TEMPLATE}|sed 's,@@check@@,./${AETEN_CLI} check ${VERBOSE},g' > ${CURDIR}/${template}";;
 	*) fatal 'Builder must be "ninja" or "make"';;
 esac
 
 check="${AETEN_CLI} check"
 add_prefix="${AETEN_MAKE}/generate-builder add-prefix"
+add_suffix="${AETEN_MAKE}/generate-builder add-suffix"
 replace_suffix="${AETEN_MAKE}/generate-builder replace-suffix"
 target="${AETEN_MAKE}/generate-builder target --builder ${BUILDER}"
+
+# Submodules setup
+if [ -n "${DESCRIPTION}" ]; then
+	SUBMODULES=$(git submodule status|awk '{print $$2}')
+	SUBMODULES_SCRIPT=cots/aeten-git-tools/aeten-submodules.sh
+	git_submodule=". ${AETEN_CLI} && aeten_cli_import ${AETEN_CLI} all && . ./${SUBMODULES_SCRIPT} && git-submodule-"
+
+	if [ -f "${AETEN_CLI}" ]; then
+		for module in ${SUBMODULES}; do
+			(${git_submodule}-check ${module}>/dev/null)
+		done
+	else
+		git submodule init ${AETEN_CLI_DIR}
+	fi
+fi
+
+get-headers() {
+	local source_file="$1"; shift
+	local iquotes=$(${add_prefix} -iquote\  ${@})
+	gcc -MM ${iquotes} "${source_file}" | sed '1 s,.\+: '"${source_file//./\\.}"',,; s/\\$//'
+}
+
+build-target() {
+	local command=$1; shift
+	local in_prefix=$1; shift
+	local in_suffix=$1; shift
+	local out_prefix=$1; shift
+	local out_suffix=$1; shift
+	local output
+	for input in $@; do
+		output=${out_prefix}$(dirname $input|sed 's,^\\\${output}/,,')
+		${target} --command $command --depends $input ${output}/$(basename --suffix=.$in_suffix $input).$out_suffix
+	done
+}
 
 COMMANDS=$(. ${AETEN_CLI} && __aeten_cli_api ${AETEN_CLI} | grep -v '^import$')
 LINKS=$(${add_prefix} ${INSTALL_BIN_DIR}/ ${COMMANDS})
 SRC=$(find src/ test/ -type f -name \*.c)
 OBJ=$(${replace_suffix} .c .o $(${add_prefix} \\\\\${output}/ ${SRC}))
+PUML_FILES=$(find uml -type f -name \*.puml)
+HEADERS=$(${replace_suffix} .puml .h $(${add_prefix} \\\\\${output}/ ${PUML_FILES}))
+XMI_FILES=$(${replace_suffix} .h .xmi ${HEADERS})
+RUN_TESTS=$(for ut_src in $(find test -name \*.c); do echo run-$(basename ${ut_src//_/-} .c); done)
+PUML_PATH="-Dplantuml.include.path=uml:uml/aeten"
+PUML_FLAGS=$(${add_suffix} "=${GENERIC_REPLACEMENT}" $(${add_prefix} -D {A..Z}))
 
-OBJECTS_BUILD="$(for src in ${SRC}; do
-	${target} --command cc --depends ${src} \\\${output}/$(dirname ${src})/$(basename --suffix=.c ${src}).o;
-done|sed '$ ! s/$/\\/')"
+BUILD_TARGETS=$( (
+	build-target puml2xmi ''   puml '\${output}/' xmi ${PUML_FILES};
+	build-target xmi2c    uml/ xmi  '\${generated}/interface/' h ${XMI_FILES};
+	build-target xmi2c    uml/ xmi  '\${generated}/skeleton/' c ${XMI_FILES};
+	build-target cc       ''   c    '\${output}/' o ${SRC}
+	for ut_src in $(find test -name \*.c); do
+		ut=$(basename ${ut_src//_/-} .c);
+		depedencies=$(for header in $(get-headers ${ut_src} ${IQUOTES}); do test -f "$(${replace_suffix} .h .c ${header})" && echo "$(${replace_suffix} .h .o ${header})"; done);
+		${target} --command ld $(${add_prefix} '--depends \\\${output}/' $(${replace_suffix} .c .o ${ut_src}) ${depedencies}) \\\${output}/test/${ut};
+		${target} --command run --depends \\\${output}/test/${ut} run-${ut};
+	done
+) |sed '$ ! s/$/\\/')
+
 RUN_TESTS="$(for ut_src in $(find test -name \*.c); do
-	ut=$(basename ${ut_src//_/-} .c);
-	echo run-$ut;
-done|sed '$ ! s/$/\\/')"
-TESTS_BUILD="$(for ut_src in $(find test -name \*.c); do
-	ut=$(basename ${ut_src//_/-} .c);
-	${target} --command ld $(${add_prefix} '--depends '  "${OBJ}") \\\${output}/test/${ut};
-done|sed '$ ! s/$/\\/')"
-TESTS_TARGET="$(for ut_src in $(find test -name \*.c); do
-	ut=$(basename ${ut_src//_/-} .c);
-	${target} --command run --depends \\\${output}/test/${ut} run-${ut};
+	echo run-$(basename ${ut_src//_/-} .c);
 done|sed '$ ! s/$/\\/')"
 
-check -m "Generates ${build_script}" -v ${AETEN_MAKE}/generate-builder -t ${WORKING_DIR}/${template} "${@}" '>' ${WORKING_DIR}/${build_script} <<EOF
-CFLAGS = ${CFLAGS} $(${add_prefix} -W ${WARNING}) $(${add_prefix} -iquote\  ${IQUOTES})
-LDFLAGS = ${LDFLAGS}
+check -m "Generates ${build_script}" -v ${AETEN_MAKE}/generate-builder -t ${CURDIR}/${template} "${@}" '>' ${CURDIR}/${build_script} <<EOF
+CFLAGS          = ${CFLAGS} $(${add_prefix} -W ${WARNING}) $(${add_prefix} -iquote\  ${IQUOTES})
+LDFLAGS         = ${LDFLAGS}
+PUML_PATH       = ${PUML_PATH}
+PUML_FLAGS      = ${PUML_FLAGS}
+JAVA            = java
+PLANTUML        = ${PLANTUML}
+XMI2C           = $(dirname "$0")/xmi2c
+CC              = gcc
+LD              = gcc
 INSTALL_LIB_DIR = ${LIB_DIR}
-OBJECTS_BUILD = ${OBJECTS_BUILD}
-TESTS_BUILD = ${TESTS_BUILD}
-TESTS_TARGET = ${TESTS_TARGET}
-RUN_TESTS = ${RUN_TESTS}
-OBJ = $(echo ${OBJ})
-OUT = ${OUT}
+OBJ             = $(echo ${OBJ})
+BUILD_TARGETS   = ${BUILD_TARGETS}
+RUN_TESTS       = ${RUN_TESTS}
+OUT             = ${OUT}
+GENERATED       = ${CURDIR}/generated
 EOF
 
 [ ${BUILDER} = make ] && rm ${template}

@@ -1,0 +1,16 @@
+@startuml
+!include Object.puml
+!include List.puml
+namespace aeten.collection {
+	class ArrayList<T> implements List {
+		- capacity : unsigned
+		- size : unsigned
+		- elements : T[]
+
+		{static} + ArrayList(unsigned initial_capacity) <<constructor>>
+	}
+	note right of ArrayList::ArrayList
+		Constructor
+	end note
+}
+@enduml

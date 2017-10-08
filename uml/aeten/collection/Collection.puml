@@ -1,0 +1,11 @@
+@startuml
+!include Iterable.puml
+namespace aeten.collection {
+	interface Collection<T> extends Iterable {
+		+ unsigned size()
+	}
+	note right of Collection::size
+		Return the size of the collection.
+	end note
+}
+@enduml
