@@ -24,7 +24,7 @@ rule run
 
 rule puml2xmi
 	description = Convert UML class diagram '${in}' into XMI
-	command = ${JAVA} -Djava.awt.headless=true ${pumlpath} -jar ${puml} -ofile ${out} -failfast2 -txmi:star ${pumlflags} ${in} || { rm -f ${out}; false; }
+	command = ${JAVA} -Djava.awt.headless=true ${pumlpath} -jar ${puml} -o $$(realpath --relative-to=$$(dirname ${in}) $$(dirname ${out})) -failfast2 -txmi:star ${pumlflags} ${in} || { rm -f ${out}; false; }
 
 rule xmi2c
 	description = Generate C file '${out}' from XMI

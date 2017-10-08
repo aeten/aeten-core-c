@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 CURDIR=$(dirname "${0}")
 AETEN_CLI_DIR=${CURDIR}/cots/aeten-cli
 
@@ -36,7 +38,7 @@ CLASSES=$(xmlstarlet el -v "${XMI}" | awk '/Class\[/ {
 	match($0, /@namespace='"'([^']*)'"'/, namespace);
 	match($0, /@xmi.id='"'([^']*)'"'/, id);
 	match($0, /@isInterface='"'([^']*)'"'/, is_interface);
-	
+
 	if (is_interface[1] == "true") {
 		classtype = "interface";
 	} else {
@@ -73,8 +75,12 @@ class_visitor_init='
 	local c_class=${namespace//./_}__${classname}
 '
 methods_class_visitor_init='
-	methods=$(xmlstarlet sel -B -t -v "//UML:Class[@xmi.id='"'"'${classid}'"'"']/UML:Classifier.feature/UML:Operation/@name" "${XMI}"|sed "s/&lt;/</g;s/&gt;/>/g"; true)
+	local methods=$(xmlstarlet sel -B -t -m "//UML:Class[@xmi.id='"'"'${classid}'"'"']/UML:Classifier.feature/UML:Operation" -v "concat(./@name, '"'"' «'"'"', ./@ownerScope, '"'"'» '"'"', '"'"'«'"'"', @visibility, '"'"'»'"'"')" -n "${XMI}"|sed "s/&lt;/</g;s/&gt;/>/g"; true)
+	if [ ${classtype} = class ] && { echo "${methods}"|grep -q -v "${classname}\s*(\s*${c_class}\*" ; }; then
+		methods+=$(echo -e "${classname}() «classifier» «public»\n")
+	fi
 '
+
 attributes_class_visitor_init='
 	attributes=$(xmlstarlet sel -B -t -v "//UML:Class[@xmi.id='"'"'${classid}'"'"']/UML:Classifier.feature/UML:Attribute/@name" "${XMI}"|sed "s/&lt;/</g;s/&gt;/>/g"; true)
 '
@@ -85,7 +91,7 @@ visit_method() {
 	local _class="$1"; shift
 	local _method=$(echo "$1"|sed 's/&lt;/</g;s/&gt;/>/g')
 	eval ${_visitor} "${_class}" $(echo "${_method}" | gawk '{
-		match($0, /(([^ ]+) +)?([^ (]+) *\( *([^)]*)? *\) *(«[^»]»)?/, signature);
+		match($0, /(([^ ]+) +)?([^ (]+) *\( *([^)]*)? *\) *(«.*)?/, signature);
 		if (signature[2] == "") {
 			type = "void";
 		} else {
@@ -94,6 +100,7 @@ visit_method() {
 		name = signature[3];
 		args = signature[4];
 		stereotype = signature[5];
+		gsub(/[«»]/,"",stereotype);
 		print "'"'"'" name "'"' '"'" type "'"' '"'" args "'"' '"'" stereotype "'"'"'";
 	}')
 }
@@ -104,95 +111,120 @@ method_visitor_init='
 	local _type="${1}"; shift
 	local _args="${1}"; shift
 	local _stereotype="${1}"; shift
+	local _function
+	local _static_prefix
+	local _constructor
+	local _default
+	local _static
+	local _public
+
 	_type=${_type/\[\]/*}
-	if [ "${_name}" = "${CLASS_NAME}" ]; then
-		_stereotype=constructor
+	if [ "${_name}" = "${CLASS_NAME}" ] && [ "${_stereotype/*constructor*/constructor}" != constructor ]; then
+		_stereotype+=" constructor"
 	fi
-	if [ "${_stereotype}" = constructor ]; then
-		_type="${c_class}*"
+	if [ "${_stereotype/*classifier*/classifier}" = classifier ]; then
+		_static=true
 	else
-		if [ -z "${_args}" ]; then
-			_args="${c_class}*"
+		_static=false
+	fi
+	if [ "${_stereotype/*public*/public}" = public ]; then
+		_public=true
+	else
+		_public=false
+	fi
+	if [ "${_stereotype/*default*/default}" = default ]; then
+		_default=true
+	else
+		_default=false
+	fi
+	if [ ${_name} = ${CLASS_NAME} ] || [ "${_stereotype/*constructor*/constructor}" = constructor ]; then
+		_constructor=true
+	else
+		_constructor=false
+	fi
+	if ${_constructor}; then
+		_type="${c_class}*"
+		_function=${C_CLASS}
+	else
+		if ${_static} || [ ${CLASS_TYPE} = interface ]; then
+			_function=${C_CLASS}__${_name}
 		else
-			_args="${c_class}*, ${_args}";
+			_function=${_name}
+			_static_prefix="static "
 		fi
 	fi
+	if [ -z "${_args}" ]; then
+		_args="${c_class}* _self"
+	else
+		_args="${c_class}* _self, ${_args}";
+	fi
+	_type=${_type/<*>/}
 '
 
 typedef_method_visitor() {
 	eval "${method_visitor_init}"
 	[ "${_stereotype}" = "constructor" ] && return
-	echo -e "typedef ${_type} (*${_class}__${_name})(${_args});"
+	( ! ${_static} ) && echo -e "typedef ${_type} (*${_class}__${_name})(${_args});"
 }
 
 callback_method_visitor() {
 	eval "${method_visitor_init}"
 	[ "${_stereotype}" = "constructor" ] && return
-	echo -e "\t${_class}__${_name} ${_name};"
+	( ! ${_static} ) && echo -e "\t${_class}__${_name} ${_name};"
 }
 
-# TODO factorize with definition_method_visitor()
 declaration_method_visitor() {
 	eval "${method_visitor_init}"
 	local _cls
-	local _function
-	local _static
 
-	if [ "${_stereotype}" = constructor ]; then
-		_function=${C_CLASS}
-	else
-		if [ ${CLASS_TYPE} = interface ]; then
-			_function=${C_CLASS}__${_name}
-		else
-			_function=${_name}
-			_static='static '
-		fi
+	if ${_static} || { ${_default} && [ ${CLASS_TYPE} = interface ]; } || { ( ! ${_default} ) && [ ${CLASS_TYPE} = class ]; }; then
+		$_static || [ ${CLASS_TYPE} = interface ] && echo "${_static_prefix}${_type} ${_function}($(echo "${_args}"|sed "s/^${c_class}\\* _self/${C_CLASS}* self/"));"
 	fi
-	echo "${_static}${_type} ${_function}($(echo "${_args}"|sed "s/^${c_class}\\*/${C_CLASS}* self/"));"
 }
 
-# TODO factorize with declaration_method_visitor()
 definition_method_visitor() {
 	eval "${method_visitor_init}"
 	local _cls
-	local _function
-	local _static
 
-	echo
-	if [ "${_stereotype}" = constructor ]; then
-		_function=${C_CLASS}
-	else
-		if [ ${CLASS_TYPE} = interface ]; then
-			_function=${C_CLASS}__${_name}
+	if ${_static} || { ${_default} && [ ${CLASS_TYPE} = interface ]; } || { ( ! ${_default} ) && [ ${CLASS_TYPE} = class ]; }; then
+		if ${_constructor} || [ ${c_class} = ${C_CLASS} ] ; then
+			_args=$(echo "${_args}"|sed "s/^${c_class}\\* _self/${C_CLASS}* self/")
+		fi
+		cat - <<EOF
+
+//! \\memberof ${c_class}
+${_static_prefix}${_type} ${_function}(${_args}) {
+EOF
+		if ${_constructor}; then
+			cat - <<EOF
+	_${c_class^^}__INIT
+	// TODO: Implement
+	return self;
+}
+EOF
+		elif [ ${c_class} = ${C_CLASS} ]; then
+			cat - <<EOF
+	// TODO: Implement
+}
+EOF
 		else
-			_function=${_name}
-			_static='static '
+			cat - <<EOF
+	${C_CLASS}* self = (${C_CLASS}*) _self;
+	// TODO: Implement
+}
+EOF
 		fi
 	fi
-	echo "${_static}${_type} ${_function}($(echo "${_args}"|sed "s/^${c_class}\\*/${C_CLASS}* self/")) {"
-	if [ "${_stereotype}" = constructor ]; then
-		echo -e "\t${C_CLASS}* self = malloc(sizeof(${C_CLASS}));"
-		echo -e '\tif(self == NULL) {\n\t\treturn NULL;\n\t}'
-		for _cls in ${CLASS_HIERARCHY}; do
-			visit_class constructor_definition ${_cls}
-		done
-	fi
-	echo -e '\t// TODO: Implement'
-	if [ "${_stereotype}" = constructor ]; then
-		echo -e '\treturn self;'
-	fi
-	echo '}'
 }
 
 constructor_definition_method_visitor() {
 	eval "${method_visitor_init}"
-	if [ "${_stereotype}" != constructor ]; then
-		if [ ${CLASS_TYPE} = interface ]; then
-			_function=${C_CLASS}__${_name}
+	if ( ! ${_static} ) && [ "${_stereotype}" != constructor ]; then
+		if { ${_default} && [ ${CLASS_TYPE} = interface ]; } || { ( ! ${_default} ) && [ ${CLASS_TYPE} = class ]; }; then
+			echo -e "\tself->${_name} = ${_name};"
 		else
-			_function=${_name}
+			echo -e "\tself->${_name} = ${c_class}__${_name};"
 		fi
-		echo -e "\tself->${_name} = ${_function};"
 	fi
 }
 
@@ -230,7 +262,6 @@ attributes_class_visitor() {
 method_declaration_class_visitor() {
 	eval "${class_visitor_init}"
 	eval "${methods_class_visitor_init}"
-	echo "// ${c_class}"
 	IFS=$'\n'
 	for method in ${methods}; do
 		visit_method declaration "${c_class}" "${method}"
@@ -241,19 +272,16 @@ method_declaration_class_visitor() {
 method_definition_class_visitor() {
 	eval "${class_visitor_init}"
 	eval "${methods_class_visitor_init}"
-	echo -e "\n\n// ${c_class} {{{"
 	IFS=$'\n'
 	for method in ${methods}; do
 		visit_method definition "${c_class}" "${method}"
 	done
 	unset IFS
-	echo -e "// }}} ${c_class}"
 }
 
 constructor_definition_class_visitor() {
 	eval "${class_visitor_init}"
 	eval "${methods_class_visitor_init}"
-	echo -e "\t// ${c_class}"
 	IFS=$'\n'
 	for method in ${methods}; do
 		visit_method constructor_definition "${c_class}" "${method}"
@@ -302,13 +330,18 @@ EOF
 	for cls in ${CLASS_HIERARCHY}; do
 		visit_class attributes ${cls}
 	done
-	echo '};'
-	echo "#endif // _${c_class^^}_H"
+	echo -e '};\n'
+	for cls in ${CLASS_HIERARCHY}; do
+		visit_class method_declaration ${cls}
+	done
+	echo -e "\n#endif // _${c_class^^}_H"
 }
 
 c_source_class_visitor() {
 	eval "${class_visitor_init}"
 	local cls
+
+	echo -e '#include <strings.h>\n'
 
 	for cls in ${CLASSES}; do
 		if [ "${cls}" = "${CLASS}" ]; then
@@ -318,6 +351,21 @@ c_source_class_visitor() {
 	done
 
 	if [ ${classtype} = class ]; then
+		cat - <<EOF
+#define _${C_CLASS^^}__INIT \\
+	if(self == NULL) { \\
+		${C_CLASS}* self = malloc(sizeof(${C_CLASS})); \\
+		if(self == NULL) { \\
+			return NULL; \\
+		} \\
+	} \\
+	memset(self, 0, sizeof(${C_CLASS})); \\
+EOF
+
+		for _cls in ${CLASS_HIERARCHY}; do
+			visit_class constructor_definition ${_cls}
+		done|sed '$ ! s/$/ \\/'
+
 		for cls in ${CLASS_HIERARCHY}; do
 			if [ "${cls}" != "${CLASS}" ]; then
 				visit_class method_declaration ${cls}
@@ -340,7 +388,7 @@ c_source_class_visitor() {
 	fi
 }
 
-CLASS_HIERARCHY=$(echo -e "${OBJECT}\n$(get_parents ${CLASS}|tac)\n${CLASS}"|uniq)
+CLASS_HIERARCHY=$(echo -e "${OBJECT}\n$(get_parents ${CLASS}|tac)\n${CLASS}"|sed '/^$/d'|uniq)
 for cls in ${CLASSES}; do
 	if [ "${cls}" = "${CLASS}" ]; then
 		case "${OUT}" in
