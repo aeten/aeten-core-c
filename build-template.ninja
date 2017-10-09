@@ -22,6 +22,10 @@ rule run
 	description = Run '${in}'
 	command = ./${in}
 
+rule configure
+	description = Configure
+	command = ./configure -b @@BUILDER@@
+
 rule puml2xmi
 	description = Convert UML class diagram '${in}' into XMI
 	command = ${JAVA} -Djava.awt.headless=true ${pumlpath} -jar ${puml} -o $$(realpath --relative-to=$$(dirname ${in}) $$(dirname ${out})) -failfast2 -txmi:star ${pumlflags} ${in} || { rm -f ${out}; false; }
@@ -30,6 +34,8 @@ rule xmi2c
 	description = Generate C file '${out}' from XMI
 	command = ${XMI2C} --mode simple --in ${in} --out ${out}
 
+build api: configure || @@API@@
+build init: phony || api
 build test: phony || @@RUN_TESTS@@
 default test
 
