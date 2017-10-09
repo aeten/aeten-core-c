@@ -1,0 +1,9 @@
+@startuml
+!include Test.puml
+namespace aeten {
+	class MainTest implements Test {
+		- value : unsigned
+		{static} + MainTest(unsigned initial_capacity)
+	}
+}
+@enduml

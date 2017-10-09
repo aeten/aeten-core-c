@@ -117,8 +117,14 @@ method_visitor_init='
 	local _default
 	local _static
 	local _public
+	local _parent
+	local _parent_type
+	local _parent_id
+	local _parent_namespace
+	local _parent_name
 
 	_type=${_type/\[\]/*}
+	_type=${_type/<*>/}
 	if [ "${_name}" = "${CLASS_NAME}" ] && [ "${_stereotype/*constructor*/constructor}" != constructor ]; then
 		_stereotype+=" constructor"
 	fi
@@ -143,8 +149,21 @@ method_visitor_init='
 		_constructor=false
 	fi
 	if ${_constructor}; then
-		_type="${c_class}*"
-		_function=${C_CLASS}
+
+		_parent=$(get_parents ${class})
+		_parent=${parent/ */}
+		_parent_type=${parent/:*/}
+		_parent_id=${parent/${parent_type}:/}
+		_parent_id=${parent_id/:*/}
+		_parent_namespace=${parent/${parent_type}:${parent_id}:/}
+		_parent_namespace=${parent_namespace/:*/}
+		_parent_name=${parent//*:/}
+		_type="${parent_namespace//./_}__${parent_name}*"
+		if [ ${_name} = ${CLASS_NAME} ]; then
+			_function=${C_CLASS}__new
+		else
+			_function=${C_CLASS}__${_name}
+		fi
 	else
 		if ${_static} || [ ${CLASS_TYPE} = interface ]; then
 			_function=${C_CLASS}__${_name}
@@ -158,19 +177,18 @@ method_visitor_init='
 	else
 		_args="${c_class}* _self, ${_args}";
 	fi
-	_type=${_type/<*>/}
 '
 
 typedef_method_visitor() {
 	eval "${method_visitor_init}"
 	[ "${_stereotype}" = "constructor" ] && return
-	( ! ${_static} ) && echo -e "typedef ${_type} (*${_class}__${_name})(${_args});"
+	( ! ${_static} ) && echo -e "typedef ${_type} (*${_class}__${_name}_t)(${_args});"
 }
 
 callback_method_visitor() {
 	eval "${method_visitor_init}"
 	[ "${_stereotype}" = "constructor" ] && return
-	( ! ${_static} ) && echo -e "\t${_class}__${_name} ${_name};"
+	( ! ${_static} ) && echo -e "\t${_class}__${_name}_t ${_name};"
 }
 
 declaration_method_visitor() {
@@ -178,7 +196,7 @@ declaration_method_visitor() {
 	local _cls
 
 	if ${_static} || { ${_default} && [ ${CLASS_TYPE} = interface ]; } || { ( ! ${_default} ) && [ ${CLASS_TYPE} = class ]; }; then
-		$_static || [ ${CLASS_TYPE} = interface ] && echo "${_static_prefix}${_type} ${_function}($(echo "${_args}"|sed "s/^${c_class}\\* _self/${C_CLASS}* self/"));"
+		$_static || [ ${CLASS_TYPE} = interface ] || [ ${out} = c_source ] && echo "${_static_prefix}${_type} ${_function}($(echo "${_args}"|sed "s/^${c_class}\\* _self/${C_CLASS}* self/"));"
 	fi
 }
 
@@ -199,7 +217,7 @@ EOF
 			cat - <<EOF
 	_${c_class^^}__INIT
 	// TODO: Implement
-	return self;
+	return (${_type})self;
 }
 EOF
 		elif [ ${c_class} = ${C_CLASS} ]; then
@@ -293,9 +311,9 @@ get_parents() {
 	local class=$1
 	local id=$(echo ${class}|cut -d : -f 2)
 	local parents=$(xmlstarlet sel -B -t -v "//UML:Generalization[@child='${id}']/@parent" "${XMI}";true)
-	if [ $MODE} = 'simple' ]; then
+	if [ ${MODE} = 'simple' ]; then
 		set -- ${parents}
-		[ -gt 1 ${#} ] && echo 'The simple mode support only one parent per interface' >&2 && exit 1
+		[ ${#} -gt 1 ] && echo 'The simple mode support only one parent per interface' >&2 && exit 1
 	fi
 	for id in ${parents}; do
 		class=$(echo ${CLASSES}|awk -F: 'BEGIN{ RS = " " } $2 ~ /'${id}'/ { print $0 }')
@@ -341,7 +359,7 @@ c_source_class_visitor() {
 	eval "${class_visitor_init}"
 	local cls
 
-	echo -e '#include <strings.h>\n'
+	echo -e '#include <string.h>\n'
 
 	for cls in ${CLASSES}; do
 		if [ "${cls}" = "${CLASS}" ]; then
@@ -366,6 +384,7 @@ EOF
 			visit_class constructor_definition ${_cls}
 		done|sed '$ ! s/$/ \\/'
 
+		echo
 		for cls in ${CLASS_HIERARCHY}; do
 			if [ "${cls}" != "${CLASS}" ]; then
 				visit_class method_declaration ${cls}
