@@ -1,20 +1,16 @@
-#include <strings.h>
-
-#include "aeten/Object.h"
+#include "Object.h"
 
 
-//! \memberof aeten__Object
-void aeten__Object__delete(aeten__Object* self) {
-	// TODO: Implement
+/*
+@startuml
+namespace aeten {
+	interface Object<T> {
+		+ finalize() <<default>>
+	}
 }
+@enduml
+*/
 
-//! \memberof aeten__Object
-aeten__Object* aeten__Object__clone(aeten__Object* self) {
-	// TODO: Implement
-	return NULL;
-}
+void aeten__Object__finalize(aeten__Object* self) { }
 
-//! \memberof aeten__Object
-void aeten__Object__copy(aeten__Object* self, aeten__Object* dest) {
-	// TODO: Implement
-}
+

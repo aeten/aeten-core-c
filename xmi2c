@@ -33,6 +33,21 @@ XMI="${IN}"
 [ -f "$XMI" ] || { echo "Input XMI file '${XMI}' is not a file"; exit 1; }
 
 
+get_parents() {
+	local class=$1
+	local id=$(echo ${class}|cut -d : -f 2)
+	local parents=$(xmlstarlet sel -B -t -v "//UML:Generalization[@child='${id}']/@parent" "${XMI}";true)
+	if [ ${MODE} = 'simple' ]; then
+		set -- ${parents}
+		[ ${#} -gt 1 ] && echo 'The simple mode support only one parent per interface' >&2 && exit 1
+	fi
+	for id in ${parents}; do
+		class=$(echo ${CLASSES}|awk -F: 'BEGIN{ RS = " " } $2 ~ /'${id}'/ { print $0 }')
+		echo $class
+		get_parents $class
+	done
+}
+
 CLASSES=$(xmlstarlet el -v "${XMI}" | awk '/Class\[/ {
 	match($0, /@name='"'([^']*)'"'/, classname);
 	match($0, /@namespace='"'([^']*)'"'/, namespace);
@@ -57,53 +72,15 @@ NAMESPACE=${NAMESPACE/:*/}
 CLASS_NAME=${CLASS//*:/}
 C_CLASS=${NAMESPACE//./_}__${CLASS_NAME}
 
-
-visit_class() {
-	local _visitor="${1}_class_visitor"; shift
-	local _class="$1"; shift
-	eval ${_visitor} "${_class}"
-}
-
-class_visitor_init='
-	local class=$1
-	local classtype=${class/:*/}
-	local classid=${class/${classtype}:/}
-	classid=${classid/:*/}
-	local namespace=${class/${classtype}:${classid}:/}
-	namespace=${namespace/:*/}
-	local classname=${class//*:/}
-	local c_class=${namespace//./_}__${classname}
-'
-methods_class_visitor_init='
-	local methods=$(xmlstarlet sel -B -t -m "//UML:Class[@xmi.id='"'"'${classid}'"'"']/UML:Classifier.feature/UML:Operation" -v "concat(./@name, '"'"' «'"'"', ./@ownerScope, '"'"'» '"'"', '"'"'«'"'"', @visibility, '"'"'»'"'"')" -n "${XMI}"|sed "s/&lt;/</g;s/&gt;/>/g"; true)
-	if [ ${classtype} = class ] && { echo "${methods}"|grep -q -v "${classname}\s*(\s*${c_class}\*" ; }; then
-		methods+=$(echo -e "${classname}() «classifier» «public»\n")
-	fi
-'
-
-attributes_class_visitor_init='
-	attributes=$(xmlstarlet sel -B -t -v "//UML:Class[@xmi.id='"'"'${classid}'"'"']/UML:Classifier.feature/UML:Attribute/@name" "${XMI}"|sed "s/&lt;/</g;s/&gt;/>/g"; true)
-'
-
-
-visit_method() {
-	local _visitor="${1}_method_visitor"; shift
-	local _class="$1"; shift
-	local _method=$(echo "$1"|sed 's/&lt;/</g;s/&gt;/>/g')
-	eval ${_visitor} "${_class}" $(echo "${_method}" | gawk '{
-		match($0, /(([^ ]+) +)?([^ (]+) *\( *([^)]*)? *\) *(«.*)?/, signature);
-		if (signature[2] == "") {
-			type = "void";
-		} else {
-			type = signature[2];
-		}
-		name = signature[3];
-		args = signature[4];
-		stereotype = signature[5];
-		gsub(/[«»]/,"",stereotype);
-		print "'"'"'" name "'"' '"'" type "'"' '"'" args "'"' '"'" stereotype "'"'"'";
-	}')
-}
+PARENT=$(get_parents ${CLASS})
+PARENT=${PARENT/ */}
+PARENT_TYPE=${PARENT/:*/}
+PARENT_ID=${PARENT/${PARENT_TYPE}:/}
+PARENT_ID=${PARENT_ID/:*/}
+PARENT_NAMESPACE=${PARENT/${PARENT_TYPE}:${PARENT_ID}:/}
+PARENT_NAMESPACE=${PARENT_NAMESPACE/:*/}
+PARENT_NAME=${PARENT//*:/}
+C_PARENT=${PARENT_NAMESPACE//./_}__${PARENT_NAME}
 
 method_visitor_init='
 	local _class="${1}"; shift
@@ -122,6 +99,7 @@ method_visitor_init='
 	local _parent_id
 	local _parent_namespace
 	local _parent_name
+	local _args_without_self
 
 	_type=${_type/\[\]/*}
 	_type=${_type/<*>/}
@@ -151,16 +129,17 @@ method_visitor_init='
 	if ${_constructor}; then
 
 		_parent=$(get_parents ${class})
-		_parent=${parent/ */}
-		_parent_type=${parent/:*/}
-		_parent_id=${parent/${parent_type}:/}
-		_parent_id=${parent_id/:*/}
-		_parent_namespace=${parent/${parent_type}:${parent_id}:/}
-		_parent_namespace=${parent_namespace/:*/}
-		_parent_name=${parent//*:/}
-		_type="${parent_namespace//./_}__${parent_name}*"
+		_parent=${_parent/ */}
+		_parent_type=${_parent/:*/}
+		_parent_id=${_parent/${_parent_type}:/}
+		_parent_id=${_parent_id/:*/}
+		_parent_namespace=${_parent/${_parent_type}:${_parent_id}:/}
+		_parent_namespace=${_parent_namespace/:*/}
+		_parent_name=${_parent//*:/}
+		_c_parent=${_parent_namespace//./_}__${_parent_name}
+		_type="${_c_parent}"
 		if [ ${_name} = ${CLASS_NAME} ]; then
-			_function=${C_CLASS}__new
+			_function=${C_CLASS}
 		else
 			_function=${C_CLASS}__${_name}
 		fi
@@ -172,31 +151,161 @@ method_visitor_init='
 			_static_prefix="static "
 		fi
 	fi
-	if [ -z "${_args}" ]; then
-		_args="${c_class}* _self"
-	else
-		_args="${c_class}* _self, ${_args}";
+	if ( ! ${_static} ) || ${_constructor}; then
+		_args_without_self=${_args}
+		if [ -z "${_args}" ]; then
+			_args="${c_class}* self"
+		else
+			_args="${c_class}* self, ${_args}";
+		fi
 	fi
 '
+
+class_visitor_init='
+	local class=$1
+	local classtype=${class/:*/}
+	local classid=${class/${classtype}:/}
+	classid=${classid/:*/}
+	local namespace=${class/${classtype}:${classid}:/}
+	namespace=${namespace/:*/}
+	local classname=${class//*:/}
+	local c_class=${namespace//./_}__${classname}
+'
+
+methods_class_visitor_init='
+	local methods=$(xmlstarlet sel -B -t -m "//UML:Class[@xmi.id='"'"'${classid}'"'"']/UML:Classifier.feature/UML:Operation" -v "concat(./@name, '"'"' «'"'"', ./@ownerScope, '"'"'» '"'"', '"'"'«'"'"', @visibility, '"'"'»'"'"')" -n "${XMI}"|sed "s/&lt;/</g;s/&gt;/>/g"; true)
+	if [ ${classtype} = class ] && { echo "${methods}"|grep -q -v "${classname}\s*(\s*${c_class}\*" ; }; then
+		methods+=$(echo -e "${classname}() «classifier» «public»\n")
+	fi
+'
+
+attributes_class_visitor_init='
+	local attributes=$(xmlstarlet sel -B -t -m "//UML:Class[@xmi.id='"'"'${classid}'"'"']/UML:Classifier.feature/UML:Attribute" -v "concat(./@name, '"'"' «'"'"', ./@ownerScope, '"'"'» '"'"', '"'"'«'"'"', @visibility, '"'"'»'"'"')" -n "${XMI}"|sed "s/&lt;/</g;s/&gt;/>/g"; true)
+'
+
+attributes_visitor_init='
+	local _attribute=${@}
+	_attribute=$(echo "${_attribute}"|tr "\n" " ")
+	local _name=${_attribute/:*/}
+	local _type=${_attribute/${_name}:/}
+	_type=${_type/«*/}
+	local _stereotypes=${_attribute/${_name}:${_type}/}
+	_name=${_name// /}
+	_type=${_type// /}
+	local _stereotypes=${_stereotypes//[«»]/ }
+	local _public
+	local _static
+	if [ "${_stereotypes/*classifier*/classifier}" = classifier ]; then
+		_static=true
+	else
+		_static=false
+	fi
+	if [ "${_stereotypes/*public*/public}" = public ]; then
+		_public=true
+	else
+		_public=false
+	fi
+	if [ "${_stereotypes/*final*/final}" = final ]; then
+		_final=true
+	else
+		_final=false
+	fi
+'
+
+visit_class() {
+	local _visitor="${1}_class_visitor"; shift
+	local _class="$1"; shift
+	eval ${_visitor} "${_class}"
+}
+
+visit_attribute() {
+	local _visitor="${1}_attribute_visitor"; shift
+	local _class="$1"; shift
+	local _attribute="${1}"
+	eval ${_visitor} "${_class}" "${_attribute}"
+}
+
+visit_method() {
+	local _visitor="${1}_method_visitor"; shift
+	local _class="$1"; shift
+	local _method=$(echo "$1"|sed 's/&lt;/</g;s/&gt;/>/g')
+	eval ${_visitor} "${_class}" $(echo "${_method}" | gawk '{
+		match($0, /(([^ ]+) +)?([^ (]+) *\( *([^)]*)? *\) *(«.*)?/, signature);
+		if (signature[2] == "") {
+			type = "void";
+		} else {
+			type = signature[2];
+		}
+		name = signature[3];
+		args = signature[4];
+		stereotype = signature[5];
+		gsub(/[«»]/,"",stereotype);
+		print "'"'"'" name "'"' '"'" type "'"' '"'" args "'"' '"'" stereotype "'"'"'";
+	}')
+}
 
 typedef_method_visitor() {
 	eval "${method_visitor_init}"
 	[ "${_stereotype}" = "constructor" ] && return
-	( ! ${_static} ) && echo -e "typedef ${_type} (*${_class}__${_name}_t)(${_args});"
+	( ! ${_static} ) && {
+		if [ ${CLASS_TYPE} = interface ]; then
+			echo -e "typedef ${_type} (*${C_CLASS}__${_name}_t)(${_args/${c_class}\* self/${C_CLASS}* self});"
+		else
+			echo -e "typedef ${_type} (*${C_CLASS}__${_name}_t)(${_args/${c_class}\* self/${C_PARENT}* self});"
+		fi
+	}
+}
+
+object_declaration_attribute_visitor() {
+	eval "${attributes_visitor_init}"
+	${_static} || {
+		if ${_final}; then
+			if [ "${_type/*\**/*}" = '*' ] || [ "${_type/*\[\]*/[]}" = '[]' ]; then
+				echo -e "\t${_type} const ${_name};"
+			else
+				echo -e "\tconst ${_type} ${_name};"
+			fi
+		else
+			echo -e "\t${_type} ${_name};"
+		fi
+	}
+}
+
+static_declaration_attribute_visitor() {
+	eval "${attributes_visitor_init}"
+	if ${_static}; then
+		if ${_final}; then
+			if [ "${_type/*\**/*}" = '*' ] || [ "${_type/*\[\]*/[]}" = '[]' ]; then
+				echo "static ${_type} const ${_name};"
+			else
+				echo "static const ${_type} ${_name};"
+			fi
+		else
+			echo "static ${_type} ${_name};"
+		fi
+	fi
 }
 
 callback_method_visitor() {
 	eval "${method_visitor_init}"
 	[ "${_stereotype}" = "constructor" ] && return
-	( ! ${_static} ) && echo -e "\t${_class}__${_name}_t ${_name};"
+	( ! ${_static} ) && echo -e "\t${C_CLASS}__${_name}_t ${_name};"
 }
 
 declaration_method_visitor() {
 	eval "${method_visitor_init}"
 	local _cls
+	local _args
 
 	if ${_static} || { ${_default} && [ ${CLASS_TYPE} = interface ]; } || { ( ! ${_default} ) && [ ${CLASS_TYPE} = class ]; }; then
-		$_static || [ ${CLASS_TYPE} = interface ] || [ ${out} = c_source ] && echo "${_static_prefix}${_type} ${_function}($(echo "${_args}"|sed "s/^${c_class}\\* _self/${C_CLASS}* self/"));"
+		if $_static || [ ${CLASS_TYPE} = interface ] || [ ${out} = c_source ]; then
+			if ${_constructor}; then
+				echo "${_type}       ${_function}(${_args_without_self});"
+				echo "${_type}* new__${_function}(${_args_without_self});"
+			else
+				echo "${_static_prefix}${_type} ${_function}($(echo "${_args}"|sed "s/^${c_class}\\* _self/${C_CLASS}* self/"));"
+			fi
+		fi
 	fi
 }
 
@@ -210,7 +319,6 @@ definition_method_visitor() {
 		fi
 		cat - <<EOF
 
-//! \\memberof ${c_class}
 ${_static_prefix}${_type} ${_function}(${_args}) {
 EOF
 		if ${_constructor}; then
@@ -235,14 +343,53 @@ EOF
 	fi
 }
 
+helper_method_visitor() {
+	eval "${method_visitor_init}"
+	local _cls
+
+	if ( ! ${_static} ) && [ "${_stereotype}" != constructor ]; then
+		if ( ! ${_default} ); then
+			cat - <<EOF
+${_static_prefix}${_type} ${_function}(${_args/${c_class}\* self/struct _${C_CLASS}* self});
+${_type} ${C_CLASS}__${_function}(${_args}) {
+	return ${_function}((struct _${C_CLASS}*)$(echo "${_args/self/self->_self}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
+}
+
+EOF
+		fi
+	else
+		if ${_constructor}; then
+			cat - <<EOF
+static void ${_name}(${_args/${c_class}\* self/struct _${C_CLASS}* self});
+${C_PARENT}* new__${_function}(${_args_without_self}) {
+	struct _${C_CLASS}* self = malloc(sizeof(struct _${C_CLASS}));
+	_${C_CLASS}__init(self);
+	${_name}($(echo "${_args}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
+	return (${C_PARENT}*)self;
+}
+inline ${C_PARENT} ${_function}(${_args_without_self}) {
+	struct _${C_CLASS}* self = alloca(sizeof(struct _${C_CLASS}));
+	_${C_CLASS}__init(self);
+	${_name}($(echo "${_args}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
+	return *((${C_PARENT}*)self);
+}
+EOF
+		fi
+	fi
+}
+
 constructor_definition_method_visitor() {
 	eval "${method_visitor_init}"
 	if ( ! ${_static} ) && [ "${_stereotype}" != constructor ]; then
-		if { ${_default} && [ ${CLASS_TYPE} = interface ]; } || { ( ! ${_default} ) && [ ${CLASS_TYPE} = class ]; }; then
-			echo -e "\tself->${_name} = ${_name};"
+#		if { ${_default} && [ ${CLASS_TYPE} = interface ]; } || { ( ! ${_default} ) && [ ${CLASS_TYPE} = class ]; }; then
+#			echo -e "\tself->${_name} = ${_name};"
+#		else
+		if ${_default}; then
+			echo -e "\tself->${_name} = (${C_CLASS}__${_name}_t)${c_class}__${_name};"
 		else
-			echo -e "\tself->${_name} = ${c_class}__${_name};"
+			echo -e "\tself->${_name} = ${C_CLASS}__${_name};"
 		fi
+#		fi
 	fi
 }
 
@@ -261,40 +408,92 @@ typedef_class_visitor() {
 	unset IFS
 }
 
-attributes_class_visitor() {
+methods_class_visitor() {
 	eval "${class_visitor_init}"
 	eval "${methods_class_visitor_init}"
-	eval "${attributes_class_visitor_init}"
+	local _method
 
-	echo -e "\t// ${c_class}"
-	IFS=$'\n'
-	for method in ${methods}; do
-		visit_method callback "${c_class}" "${method}"
-	done
-	for attribute in ${attributes}; do
-		echo "${attribute}"|awk -F' *: *' '{sub("\\[\\]","*",$2); print "\t" $2 " " $1 ";"}'
-	done
-	unset IFS
+	if [ -n "${methods}" ]; then
+		echo -e "\t// Methods of ${c_class}"
+		IFS=$'\n'
+		for _method in ${methods}; do
+			visit_method callback "${c_class}" "${_method}"
+		done
+		unset IFS
+	fi
+}
+
+helper_methods_class_visitor() {
+	eval "${class_visitor_init}"
+	eval "${methods_class_visitor_init}"
+	local _method
+
+	if [ -n "${methods}" ]; then
+		echo -e "\t// Methods of ${c_class}"
+		IFS=$'\n'
+		for _method in ${methods}; do
+			visit_method helper "${c_class}" "${_method}"
+		done
+		unset IFS
+	fi
+}
+
+attributes_instance_class_visitor() {
+	eval "${class_visitor_init}"
+	eval "${attributes_class_visitor_init}"
+	local _attribute
+
+	if [ -n "${attributes}" ]; then
+		echo -e "\t// Attributes of ${c_class}"
+		IFS=$'\n'
+		for _attribute in ${attributes}; do
+			visit_attribute object_declaration "${_attribute}"
+		done
+		unset IFS
+	fi
+}
+
+attributes_static_class_visitor() {
+	eval "${class_visitor_init}"
+	eval "${attributes_class_visitor_init}"
+	local _attribute
+
+	if [ -n "${attributes}" ]; then
+		echo -e "\t// Attributes of ${c_class}"
+		IFS=$'\n'
+		for _attribute in ${attributes}; do
+			visit_attribute static_declaration "${_attribute}"
+		done
+		unset IFS
+	fi
 }
 
 method_declaration_class_visitor() {
 	eval "${class_visitor_init}"
 	eval "${methods_class_visitor_init}"
-	IFS=$'\n'
-	for method in ${methods}; do
-		visit_method declaration "${c_class}" "${method}"
-	done
-	unset IFS
+	local _method
+
+	if [ -n "${methods}" ]; then
+		IFS=$'\n'
+		for method in ${methods}; do
+			visit_method declaration "${c_class}" "${method}"
+		done
+		unset IFS
+	fi
 }
 
 method_definition_class_visitor() {
 	eval "${class_visitor_init}"
 	eval "${methods_class_visitor_init}"
-	IFS=$'\n'
-	for method in ${methods}; do
-		visit_method definition "${c_class}" "${method}"
-	done
-	unset IFS
+	local _method
+
+	if [ -n "${methods}" ]; then
+		IFS=$'\n'
+		for method in ${methods}; do
+			visit_method definition "${c_class}" "${method}"
+		done
+		unset IFS
+	fi
 }
 
 constructor_definition_class_visitor() {
@@ -307,28 +506,13 @@ constructor_definition_class_visitor() {
 	unset IFS
 }
 
-get_parents() {
-	local class=$1
-	local id=$(echo ${class}|cut -d : -f 2)
-	local parents=$(xmlstarlet sel -B -t -v "//UML:Generalization[@child='${id}']/@parent" "${XMI}";true)
-	if [ ${MODE} = 'simple' ]; then
-		set -- ${parents}
-		[ ${#} -gt 1 ] && echo 'The simple mode support only one parent per interface' >&2 && exit 1
-	fi
-	for id in ${parents}; do
-		class=$(echo ${CLASSES}|awk -F: 'BEGIN{ RS = " " } $2 ~ /'${id}'/ { print $0 }')
-		echo $class
-		get_parents $class
-	done
-}
-
 header_class_visitor() {
 	eval "${class_visitor_init}"
 	local cls
 
 	cat - <<EOF
-#ifndef _${c_class^^}_H
-#define _${c_class^^}_H
+#ifndef ${c_class^^}_H
+#define ${c_class^^}_H
 
 #include <stdlib.h>
 
@@ -339,20 +523,72 @@ EOF
 		fi
 	done
 	echo
-	echo "typedef struct _${c_class} ${c_class};"
+	if [ ${classtype} = interface ]; then
+		echo "typedef struct _${c_class} ${c_class};"
+	else
+		echo "struct _${c_class};"
+	fi
 	echo
-	visit_class typedef ${cls}
-	echo
-	echo "struct _${c_class} {"
-
 	for cls in ${CLASS_HIERARCHY}; do
-		visit_class attributes ${cls}
+		visit_class typedef ${cls}
 	done
-	echo -e '};\n'
+	echo
+	if [ ${classtype} = interface ]; then
+		echo "struct _${c_class} {"
+		echo -e "\t${c_class}* const _self;"
+		for cls in ${CLASS_HIERARCHY}; do
+			visit_class methods ${cls}
+			visit_class attributes_instance ${cls}
+		done
+		echo -e '};\n'
+	fi
+
 	for cls in ${CLASS_HIERARCHY}; do
 		visit_class method_declaration ${cls}
 	done
-	echo -e "\n#endif // _${c_class^^}_H"
+
+	if [ ${classtype} = class ]; then
+		echo -e "\n#ifdef _${C_CLASS^^}_PRIVATE"
+		visit_class c_private ${CLASS}
+		echo "#endif // _${C_CLASS^^}_PRIVATE"
+	fi
+
+	echo -e "\n#endif // ${c_class^^}_H"
+}
+
+c_private_class_visitor() {
+	eval "${class_visitor_init}"
+	eval "${methods_class_visitor_init}"
+	local _cls
+
+	cat - <<EOF
+#include <assert.h>
+#include <string.h>
+
+struct _${c_class} {
+	struct _${c_class}* const _self;
+$(for cls in ${CLASS_HIERARCHY}; do
+	visit_class methods ${cls}
+	visit_class attributes_instance ${cls}
+done)
+};
+
+static void _${C_CLASS}__init(struct _${c_class}* self);
+
+$(for cls in ${CLASS_HIERARCHY}; do
+	visit_class attributes_static ${cls}
+	visit_class helper_methods ${cls}
+done)
+
+static void _${C_CLASS}__init(struct _${c_class}* self) {
+	assert(self != NULL);
+	memcpy(self, &self, sizeof(struct _${C_CLASS}*));
+$(for _cls in ${CLASS_HIERARCHY}; do
+	visit_class constructor_definition ${_cls}
+done)
+}
+EOF
+
 }
 
 c_source_class_visitor() {

@@ -12,7 +12,7 @@ XMI2C = @@XMI2C@@
 
 rule cc
 	description = Compile ${in}
-	command = ${CC} -o ${out} -c ${cflags} ${in}
+	command = ${CC} -o ${out} -c ${cflags} -D$$(dirname ${first}|awk -F/ 'BEGIN{OFS="_"}{$$1="";print toupper($$0 "__'$$(basename ${first} .c)'_private")}') ${first}
 
 rule ld
 	description = Link objects into ${out}

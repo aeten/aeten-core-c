@@ -60,7 +60,7 @@ else
 	VERBOSE=
 fi
 
-IQUOTES='src/ generated/interface/uml/ test/'
+IQUOTES='generated/src generated/src/aeten generated/test generated/test/aeten'
 LDFLAGS+='-lpthread'
 
 ${VERSION} && { echo ${PROJECT_NAME}: version ${TAG}; exit 0; }
@@ -131,23 +131,25 @@ build-target() {
 COMMANDS=$(. ${AETEN_CLI} && __aeten_cli_api ${AETEN_CLI} | grep -v '^import$')
 LINKS=$(${add_prefix} ${INSTALL_BIN_DIR}/ ${COMMANDS})
 SRC=$(find src/ test/ -type f -name \*.c)
-OBJ=$(${replace_suffix} .c .o $(${add_prefix} \\\\\${output}/ ${SRC}))
-PUML_FILES=$(find uml -type f -name \*.puml)
-HEADERS=$(${replace_suffix} .puml .h $(${add_prefix} \\\\\${output}/ ${PUML_FILES}))
-XMI_FILES=$(${replace_suffix} .h .xmi ${HEADERS})
-PUML_PATH="-Dplantuml.include.path=uml:uml/aeten"
+OBJ=$(      ${replace_suffix} .c .o   $(${add_prefix} \\\\\${output}/    ${SRC}))
+HEADERS=$(  ${replace_suffix} .c .h   $(${add_prefix} \\\\\${generated}/ ${SRC}))
+XMI_FILES=$(${replace_suffix} .c .xmi $(${add_prefix} \\\\\${output}/    ${SRC}))
+PUML_PATH="-Dplantuml.include.path=src:src/aeten"
 PUML_FLAGS=$(${add_suffix} "=${GENERIC_REPLACEMENT}" $(${add_prefix} -D {A..Z}))
 
 BUILD_TARGETS=$( (
-	build-target puml2xmi ''   puml '\${output}/' xmi ${PUML_FILES};
-	build-target xmi2c    uml/ xmi  '\${generated}/interface/' h ${XMI_FILES};
-	build-target xmi2c    uml/ xmi  '\${generated}/skeleton/' c ${XMI_FILES};
-	build-target cc       ''   c    '\${output}/' o ${SRC}
+	build-target puml2xmi ''   c '\${output}/'    xmi ${SRC};
+	build-target xmi2c    src/ xmi  '\${generated}/' h   ${XMI_FILES};
+	for src in $(find src test -name \*.c); do
+		depedencies=$(for header in $(get-headers ${src} ${IQUOTES}); do
+			test -f "$(${replace_suffix} .h .c ${header/generated\//})"
+		done|uniq);
+		${target} --command cc --depends ${src} $(${add_prefix} '--depends \\\${generated}/' $(echo $(${replace_suffix} .c .h ${src}) ${depedencies}|tr ' ' '\n'|uniq)) \\\${output}/$(${replace_suffix} .c .o ${src});
+	done
 	for ut_src in $(find test -name \*.c); do
 		ut=$(basename ${ut_src//_/-} .c);
 		depedencies=$(for header in $(get-headers ${ut_src} ${IQUOTES}); do
-			test -f "$(${replace_suffix} .h .c ${header/generated\/interface\/uml\//src/})" && echo "$(${replace_suffix} .h .o ${header/generated\/interface\/uml\//src/})"
-			test -f "$(${replace_suffix} .h .c ${header/generated\/interface\/uml\//test/})" && echo "$(${replace_suffix} .h .o ${header/generated\/interface\/uml\//test/})"
+			test -f "$(${replace_suffix} .h .c ${header/generated\//})" && echo "$(${replace_suffix} .h .o ${header/generated\//})"
 		done|uniq);
 		${target} --command ld $(${add_prefix} '--depends \\\${output}/' $(echo $(${replace_suffix} .c .o ${ut_src}) ${depedencies}|tr ' ' '\n'|uniq)) \\\${output}/test/${ut};
 		${target} --command run --depends \\\${output}/test/${ut} run-${ut};
@@ -175,7 +177,7 @@ BUILD_TARGETS   = ${BUILD_TARGETS}
 RUN_TESTS       = ${RUN_TESTS}
 OUT             = ${OUT}
 GENERATED       = ${CURDIR}/generated
-API             = $(${add_prefix} '\\\${generated}/interface/' $(${replace_suffix} .puml .h ${PUML_FILES}))
+API             = $(${add_prefix} '\\\${generated}/' $(${replace_suffix} .c .h ${SRC}))
 EOF
 
 if [ ${BUILDER} = make ]; then
