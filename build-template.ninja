@@ -1,3 +1,4 @@
+project = @@PROJECT@@
 cflags = @@CFLAGS@@
 ldflags = @@LDFLAGS@@
 puml = @@PLANTUML@@
@@ -9,6 +10,12 @@ LD = @@LD@@
 output = @@OUT@@
 generated = @@GENERATED@@
 XMI2C = @@XMI2C@@
+ipath = @@IPATH@@
+src = @@SRC@@
+
+rule clean
+	description = Clean
+	command = rm -rf ${in}
 
 rule cc
 	description = Compile ${in}
@@ -26,17 +33,34 @@ rule configure
 	description = Configure
 	command = ./configure -b @@BUILDER@@
 
+rule puml2cclass
+	description = Include UML '${in}' in a c class file '${out}'
+	command = printf '#include "%s"\n\n/*!\n%s\n*/\n' "$$(basename ${in} .puml).h" "$$(cat "${in}")" > "${out}"
+
 rule puml2xmi
 	description = Convert UML class diagram '${in}' into XMI
 	command = ${JAVA} -Djava.awt.headless=true ${pumlpath} -jar ${puml} -o $$(realpath --relative-to=$$(dirname ${in}) $$(dirname ${out})) -failfast2 -txmi:star ${pumlflags} ${in} || { rm -f ${out}; false; }
 
 rule xmi2c
-	description = Generate C file '${out}' from XMI
+	description = Generate C file '${out}' from XMI '${in}'
 	command = ${XMI2C} --mode simple --in ${in} --out ${out}
 
+rule qtcreator
+	description = QtCreaton project file update (${out})
+	command = echo '${content}'|awk 'BEGIN{RS=":"}{print}' > ${out}
+
 build api: configure || @@API@@
+build clean: clean ${output}
 build init: phony || api
 build test: phony || @@RUN_TESTS@@
+build ${project}.creator: qtcreator
+	content = [General]
+build ${project}.files: qtcreator
+	content = ${project}.creator:${project}.files:${project}.includes:${src}
+build ${project}.includes: qtcreator
+	content = ${ipath}
+build qtcreator: phony || ${project}.creator ${project}.files ${project}.includes
+
 default test
 
 @@BUILD_TARGETS@@

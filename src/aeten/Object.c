@@ -1,7 +1,6 @@
 #include "Object.h"
 
-
-/*
+/*!
 @startuml
 namespace aeten {
 	interface Object<T> {
