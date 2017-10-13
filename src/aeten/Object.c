@@ -1,6 +1,6 @@
 #include "Object.h"
 
-/*!
+/*
 @startuml
 namespace aeten {
 	interface Object<T> {
@@ -10,6 +10,4 @@ namespace aeten {
 @enduml
 */
 
-void aeten__Object__finalize(aeten__Object* self) { }
-
-
+void aeten__Object__finalize(aeten__Object* self) {}

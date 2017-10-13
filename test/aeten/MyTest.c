@@ -25,11 +25,11 @@ static inline void run(struct _aeten__MyTest* self) {
 
 int main(int argc, char** argv) {
 	// Heap allocation
-	aeten__Runnable* heap_test = new__aeten__MyTest();
+	Runnable* heap_test = new__aeten__MyTest();
 	heap_test->run(heap_test);
 	heap_test->finalize(heap_test);
 	// Stack allocation
-	aeten__Runnable stack_test = aeten__MyTest();
+	Runnable stack_test = aeten__MyTest();
 	stack_test.run(&stack_test);
 	stack_test.finalize(&stack_test);
 	return 0;

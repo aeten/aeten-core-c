@@ -122,10 +122,11 @@ build-target() {
 	local in_suffix=$1; shift
 	local out_prefix=$1; shift
 	local out_suffix=$1; shift
+	local ext
 	local output
 	for input in $@; do
-		output=${out_prefix}$(dirname $input|sed 's,^\\\${output}/,,')
-		${target} --command $command --depends $input ${output}/$(basename --suffix=.$in_suffix $input).$out_suffix
+		output=" ${out_prefix}$(dirname ${input}|sed 's,^\\\${output}/,,')/$(basename --suffix=.${in_suffix} ${input}).${out_suffix}"
+		${target} --command ${command} --depends ${input} ${output}
 	done
 }
 
@@ -135,18 +136,17 @@ SRC=$(find src/ test/ -type f -name \*.c)
 PUML=$(find src/ test/ -type f -name \*.puml)
 OBJ=$(       ${replace_suffix} .c .o   $(${add_prefix} \\\\\${output}/    ${SRC}))
 HEADERS=$(   ${replace_suffix} .c .h   $(${add_prefix} \\\\\${generated}/ ${SRC}))
-XMI_FILES=$( ${replace_suffix} .c .xmi $(${add_prefix} \\\\\${output}/    ${SRC}))
-PUML_PATH="-Dplantuml.include.path=src:src/aeten"
+XMI_FILES=$( ${replace_suffix} .c .xmi $(${add_prefix} \\\\\${output}/    ${SRC}) $(${add_prefix} \\\\\${output}/ $(${replace_suffix} .puml .xmi ${PUML})))
+PUML_PATH="-Dplantuml.include.path=src:src/aeten:generated/src:generated/src/aeten"
 PUML_FLAGS=$(${add_suffix} "=${GENERIC_REPLACEMENT}" $(${add_prefix} -D {A..Z}))
 
 BUILD_TARGETS=$( (
-	build-target puml2xmi    ''   c    '\${output}/'    xmi ${SRC};
-	build-target xmi2c       src/ xmi  '\${generated}/' h   ${XMI_FILES};
-	build-target puml2xmi    src/ puml '\${output}/'    xmi ${PUML};
-	build-target xmi2c       src/ xmi  '\${generated}/' h   $(${add_prefix} \\\\\${output}/ $(${replace_suffix} .puml .xmi ${PUML}));
-	build-target puml2cclass src/ puml '\${generated}/' c   ${PUML};
+	build-target puml2xmi    ''   c    '\\\${output}/'    xmi ${SRC};
+	build-target puml2xmi    src/ puml '\\\${output}/'    xmi ${PUML};
+	build-target xmi2c       src/ xmi  '\\\${generated}/' '{h,c}' ${XMI_FILES};
+#	build-target puml2c      src/ puml '\\\${generated}/' c   ${PUML};
 	for src in $(${replace_suffix} .puml .c ${PUML}); do
-		${target} --command cc --depends \\\${generated}/${src} \\\${output}/$(dirname ${src})/$(basename --suffix=.c ${src}).o
+		${target} --command cc --depends \\\${generated}/${src} '\\\${output}/'$(dirname ${src})/$(basename --suffix=.c ${src}).o
 	done
 	for src in $(find src test -name \*.c); do
 		depedencies="--depends ${src} "
@@ -155,7 +155,7 @@ BUILD_TARGETS=$( (
 			impl=$(${replace_suffix} .h .c ${header})
 			test -f "${impl}" && depedencies+="--depends $(${replace_prefix} 'generated/' '\\\${generated}/' ${impl}) "
 		done;
-		${target} --command cc ${depedencies} \\\${output}/$(${replace_suffix} .c .o ${src})
+		${target} --command cc ${depedencies} '\\\${output}/'$(${replace_suffix} .c .o ${src})
 	done
 	for ut_src in $(find test -name \*.c); do
 		executable=$(basename ${ut_src//_/-} .c);
@@ -163,7 +163,7 @@ BUILD_TARGETS=$( (
 		for header in $(get-headers ${src} ${IQUOTES}); do
 			test -f "${header}" && depedencies+="--depends $(${replace_prefix} 'generated/' '\\\${output}/' $(${replace_suffix} .h .o ${header})) "
 		done;
-		${target} --command ld ${depedencies} \\\${output}/test/${executable};
+		${target} --command ld ${depedencies} '\\\${output}/test/'${executable};
 		${target} --command run --depends \\\${output}/test/${executable} run-${executable};
 	done
 ) |sed '$ ! s/$/\\/')

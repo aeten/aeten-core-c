@@ -43,7 +43,7 @@ rule puml2xmi
 
 rule xmi2c
 	description = Generate C file '${out}' from XMI '${in}'
-	command = ${XMI2C} --mode simple --in ${in} --out ${out}
+	command = ${XMI2C} --mode simple --in ${in} $$(echo ${out}|sed 's/\(^\)\|\( \)/ --out /g')
 
 rule qtcreator
 	description = QtCreaton project file update (${out})

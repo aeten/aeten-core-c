@@ -381,9 +381,6 @@ EOF
 constructor_definition_method_visitor() {
 	eval "${method_visitor_init}"
 	if ( ! ${_static} ) && [ "${_stereotype}" != constructor ]; then
-#		if { ${_default} && [ ${CLASS_TYPE} = interface ]; } || { ( ! ${_default} ) && [ ${CLASS_TYPE} = class ]; }; then
-#			echo -e "\tself->${_name} = ${_name};"
-#		else
 		if ${_default}; then
 			echo -e "\tself->${_name} = (${C_CLASS}__${_name}_t)${c_class}__${_name};"
 		else
@@ -548,10 +545,28 @@ EOF
 	done
 
 	if [ ${classtype} = class ]; then
-		echo -e "\n#ifdef _${C_CLASS^^}_PRIVATE"
-		visit_class c_private ${CLASS}
-		echo "#endif // _${C_CLASS^^}_PRIVATE"
+		cat - <<EOF
+
+#ifdef _${C_CLASS^^}_PRIVATE
+$(visit_class c_private ${CLASS})
+
+#endif // _${C_CLASS^^}_PRIVATE
+EOF
 	fi
+	cat - <<EOF
+#define _NAMESPACE ${NAMESPACE}
+#ifndef _${C_CLASS^^}_PRIVATE
+#ifdef _NAMESPACE
+#define _S(ns) _S_(ns)
+#define _S_(ns) #ns
+#define _IS_SAME(ns) strcmp(_S(ns), "${NAMESPACE}")
+#if _IS_SAME == 0
+#define ${CLASS_NAME} ${C_CLASS}
+#define new__${CLASS_NAME} new__${C_CLASS}
+#endif
+#endif // _NAMESPACE
+#endif // _${C_CLASS^^}_PRIVATE
+EOF
 
 	echo -e "\n#endif // ${c_class^^}_H"
 }
@@ -595,66 +610,29 @@ c_source_class_visitor() {
 	eval "${class_visitor_init}"
 	local cls
 
-	echo -e '#include <string.h>\n'
-
-	for cls in ${CLASSES}; do
-		if [ "${cls}" = "${CLASS}" ]; then
-			visit_class include ${cls}
-			echo
-		fi
-	done
-
-	if [ ${classtype} = class ]; then
-		cat - <<EOF
-#define _${C_CLASS^^}__INIT \\
-	if(self == NULL) { \\
-		${C_CLASS}* self = malloc(sizeof(${C_CLASS})); \\
-		if(self == NULL) { \\
-			return NULL; \\
-		} \\
-	} \\
-	memset(self, 0, sizeof(${C_CLASS})); \\
+	cat - <<EOF
+/*
+@startuml ${CLASS_NAME}
+!include ${NAMESPACE//./\/}/${CLASS_NAME}.puml
+@enduml
+*/
 EOF
-
-		for _cls in ${CLASS_HIERARCHY}; do
-			visit_class constructor_definition ${_cls}
-		done|sed '$ ! s/$/ \\/'
-
-		echo
-		for cls in ${CLASS_HIERARCHY}; do
-			if [ "${cls}" != "${CLASS}" ]; then
-				visit_class method_declaration ${cls}
-			fi
-		done
-	fi
-
-	for cls in ${CLASSES}; do
-		if [ "${cls}" = "${CLASS}" ]; then
-			visit_class method_definition ${cls}
-		fi
-	done
-
-	if [ ${classtype} = class ]; then
-		for cls in ${CLASS_HIERARCHY}; do
-			if [ "${cls}" != "${CLASS}" ]; then
-				visit_class method_definition ${cls}
-			fi
-		done
-	fi
 }
 
 CLASS_HIERARCHY=$(echo -e "${OBJECT}\n$(get_parents ${CLASS}|tac)\n${CLASS}"|sed '/^$/d'|uniq)
 for cls in ${CLASSES}; do
 	if [ "${cls}" = "${CLASS}" ]; then
-		case "${OUT}" in
-			*.c) out=c_source;;
-			*.h) out=header;;
-			*)   echo "Invalid output file extension for '${OUT}'" >&2; exit 1;;
-		esac
-		visit_class ${out} ${cls} > "${OUT}" || {
-			rm -f "${OUT}"
-			exit 1
-		}
+		for output in ${OUT}; do
+			case "${output}" in
+				*.c) out=c_source;;
+				*.h) out=header;;
+				*)   echo "Invalid output file extension for '${output}'" >&2; exit 1;;
+			esac
+			visit_class ${out} ${cls} > "${output}" || {
+				rm -f "${output}"
+				exit 1
+			}
+		done
 	fi
 done
 
