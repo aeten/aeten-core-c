@@ -1,7 +1,7 @@
 @startuml
-!include Iterable.puml
+!include Object.c
 namespace aeten.collection {
-	interface Collection<T> extends Iterable {
+	interface Collection<T> {
 		+ unsigned size()
 	}
 	note right of Collection::size

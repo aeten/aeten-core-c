@@ -33,6 +33,21 @@ XMI="${IN}"
 [ -f "$XMI" ] || { echo "Input XMI file '${XMI}' is not a file"; exit 1; }
 
 
+get_parent() {
+	local class=$1
+	local id=$(echo ${class}|cut -d : -f 2)
+	local parents=$(xmlstarlet sel -B -t -v "//UML:Generalization[@child='${id}']/@parent" "${XMI}";true)
+	if [ ${MODE} = 'simple' ]; then
+		set -- ${parents}
+		[ ${#} -gt 1 ] && echo 'The simple mode support only one parent per interface' >&2 && exit 1
+	fi
+	for id in ${parents}; do
+		class=$(echo ${CLASSES}|awk -F: 'BEGIN{ RS = " " } $2 ~ /'${id}'/ { print $0 }')
+		echo $class
+		return 0
+	done
+}
+
 get_parents() {
 	local class=$1
 	local id=$(echo ${class}|cut -d : -f 2)
@@ -62,7 +77,8 @@ CLASSES=$(xmlstarlet el -v "${XMI}" | awk '/Class\[/ {
 	if (classname[1] !~ /\$\$\$/) {print classtype ":" id[1] ":" namespace[1] ":" classname[1];}
 }')
 
-CLASS=$(echo "${CLASSES//* /}"|tail -n 1)
+CLASS=$(echo "${CLASSES}"|awk -F: '{if ($4 == "'$(basename ${XMI} .xmi)'") {print}}')
+[ -z "${CLASS}" ] && { echo Class $(basename ${XMI} .xmi) not found in ${CLASSES} ; exit 1; }
 OBJECT=$(echo "${CLASSES}"|awk -F: '{if (($3 == "aeten") && ($4 == "Object")) {print}}')
 CLASS_TYPE=${CLASS/:*/}
 CLASS_ID=${CLASS/${CLASS_TYPE}:/}
@@ -72,7 +88,7 @@ NAMESPACE=${NAMESPACE/:*/}
 CLASS_NAME=${CLASS//*:/}
 C_CLASS=${NAMESPACE//./_}__${CLASS_NAME}
 
-PARENT=$(get_parents ${CLASS})
+PARENT=$(get_parent ${CLASS})
 PARENT=${PARENT/ */}
 PARENT_TYPE=${PARENT/:*/}
 PARENT_ID=${PARENT/${PARENT_TYPE}:/}
@@ -100,9 +116,12 @@ method_visitor_init='
 	local _parent_namespace
 	local _parent_name
 	local _args_without_self
+	local _tmp_args
+	local _arg
 
 	_type=${_type/\[\]/*}
 	_type=${_type/<*>/}
+	_type=$(full_qualified_type ${_type})
 	if [ "${_name}" = "${CLASS_NAME}" ] && [ "${_stereotype/*constructor*/constructor}" != constructor ]; then
 		_stereotype+=" constructor"
 	fi
@@ -127,8 +146,7 @@ method_visitor_init='
 		_constructor=false
 	fi
 	if ${_constructor}; then
-
-		_parent=$(get_parents ${class})
+		_parent=$(get_parent ${class})
 		_parent=${_parent/ */}
 		_parent_type=${_parent/:*/}
 		_parent_id=${_parent/${_parent_type}:/}
@@ -151,9 +169,17 @@ method_visitor_init='
 			_static_prefix="static "
 		fi
 	fi
+	_tmp_args="${_args}"
+	_args=
+	for _arg in $(echo "${_tmp_args}"|awk "BEGIN{RS=\",\"}{match(\$0, /^\s*([^ ]+\s*\*?)\s*([^ ^\n]+)\s*\$/, arg);print arg[2] \":\" arg[1]}"); do
+		[ -z "${_args}" ] || { _args+=", "; }
+		_arg=${_arg// /}
+		_args+="$(full_qualified_type "${_arg/*:/}") ${_arg/:*/}"
+	done
+#	echo "$_function(${_args})" >&2
 	if ( ! ${_static} ) || ${_constructor}; then
 		_args_without_self=${_args}
-		if [ -z "${_args}" ]; then
+		if [ -z "${_args/ /}" ]; then
 			_args="${c_class}* self"
 		else
 			_args="${c_class}* self, ${_args}";
@@ -190,8 +216,9 @@ attributes_visitor_init='
 	local _type=${_attribute/${_name}:/}
 	_type=${_type/«*/}
 	local _stereotypes=${_attribute/${_name}:${_type}/}
-	_name=${_name// /}
-	_type=${_type// /}
+	_name="${_name// /}"
+	_type="${_type// /}"
+	_type=$(full_qualified_type "${_type/\[\]/*}")
 	local _stereotypes=${_stereotypes//[«»]/ }
 	local _public
 	local _static
@@ -204,6 +231,7 @@ attributes_visitor_init='
 		_public=true
 	else
 		_public=false
+		_name=_${_name}
 	fi
 	if [ "${_stereotypes/*final*/final}" = final ]; then
 		_final=true
@@ -211,6 +239,35 @@ attributes_visitor_init='
 		_final=false
 	fi
 '
+
+full_qualified_type() {
+	local _type=${1}
+	local _class_to_resolve
+	local _pointer
+	local _class
+	local _classtype
+	local _classid
+	local _namespace
+	local _classname
+	if [ -z ${_type} ]; then
+		return
+	fi
+	for _class in ${CLASSES}; do
+		_classtype=${_class/:*/}
+		_classid=${_class/${_classtype}:/}
+		_classid=${_classid/:*/}
+		_namespace=${_class/${_classtype}:${_classid}:/}
+		_namespace=${_namespace/:*/}
+		_classname=${_class//*:/}
+		_class_to_resolve=$(echo "${_type}"|sed 's/[^a-ZA-Z0-9^_]*\([a-ZA-Z0-9_]\+\)[^a-ZA-Z0-9^_]*/\1/')
+		if [ ${_classname} = ${_class_to_resolve} ]; then
+			echo $(echo "${_type}"|sed 's/\([^a-ZA-Z0-9^_]*\)\([a-ZA-Z0-9_]\+\)\([^a-ZA-Z0-9^_]*\)/\1'${_namespace//./_}__${_classname}'\3/')
+			return 0
+		fi
+	done
+	echo ${_type}
+}
+
 
 visit_class() {
 	local _visitor="${1}_class_visitor"; shift
@@ -248,11 +305,11 @@ typedef_method_visitor() {
 	eval "${method_visitor_init}"
 	[ "${_stereotype}" = "constructor" ] && return
 	( ! ${_static} ) && {
-		if [ ${CLASS_TYPE} = interface ]; then
-			echo -e "typedef ${_type} (*${C_CLASS}__${_name}_t)(${_args/${c_class}\* self/${C_CLASS}* self});"
-		else
-			echo -e "typedef ${_type} (*${C_CLASS}__${_name}_t)(${_args/${c_class}\* self/${C_PARENT}* self});"
-		fi
+#		if [ ${CLASS_TYPE} = interface ]; then
+			echo "typedef ${_type} (*${C_CLASS}__${_name}_t)($(echo "${_args}"|sed "s/^${c_class}\\* _\?self/struct _${C_CLASS}* self/"));"
+#		else
+#			echo "typedef ${_type} (*${C_CLASS}__${_name}_t)($(echo "${_args}"|sed "s/^${c_class}\\* _self/${C_PARENT}* self/"));"
+#		fi
 	}
 }
 
@@ -349,9 +406,13 @@ helper_method_visitor() {
 
 	if ( ! ${_static} ) && [ "${_stereotype}" != constructor ]; then
 		if ( ! ${_default} ); then
+#${_static_prefix}${_type} ${_function}(${_args/${c_class}\* self/struct _${C_CLASS}* self});
+#${_type} ${C_CLASS}__${_function}(${_args}) {
+#	return ${_function}((struct _${C_CLASS}*)$(echo "${_args/self/self->_self}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
+#}
 			cat - <<EOF
 ${_static_prefix}${_type} ${_function}(${_args/${c_class}\* self/struct _${C_CLASS}* self});
-${_type} ${C_CLASS}__${_function}(${_args}) {
+${_type} ${C_CLASS}__${_function}(${_args/${c_class}\* self/struct _${C_CLASS}* self}) {
 	return ${_function}((struct _${C_CLASS}*)$(echo "${_args/self/self->_self}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
 }
 
@@ -512,6 +573,8 @@ header_class_visitor() {
 #define ${c_class^^}_H
 
 #include <stdlib.h>
+#include <stdint.h>
+#include <stdbool.h>
 
 EOF
 	for cls in ${CLASSES}; do
@@ -554,7 +617,8 @@ $(visit_class c_private ${CLASS})
 EOF
 	fi
 	cat - <<EOF
-#define _NAMESPACE ${NAMESPACE}
+
+/*
 #ifndef _${C_CLASS^^}_PRIVATE
 #ifdef _NAMESPACE
 #define _S(ns) _S_(ns)
@@ -566,9 +630,17 @@ EOF
 #endif
 #endif // _NAMESPACE
 #endif // _${C_CLASS^^}_PRIVATE
-EOF
+*/
 
-	echo -e "\n#endif // ${c_class^^}_H"
+#endif // ${c_class^^}_H
+
+#ifndef _${C_CLASS^^}_PRIVATE
+#ifdef import
+#define ${CLASS_NAME} ${C_CLASS}
+#define new__${CLASS_NAME} new__${C_CLASS}
+#endif
+#endif // _${C_CLASS^^}_PRIVATE
+EOF
 }
 
 c_private_class_visitor() {

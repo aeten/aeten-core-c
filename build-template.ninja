@@ -19,7 +19,7 @@ rule clean
 
 rule cc
 	description = Compile ${in}
-	command = ${CC} -o ${out} -c ${cflags} -D$$(dirname ${first}|awk -F/ 'BEGIN{OFS="_"}{$$1="";print toupper($$0 "__'$$(basename ${first} .c)'_private")}') ${first}
+	command = ${CC} -o ${out} -c ${cflags} -iquote ${generated}/$$(dirname ${first}) -iquote ${generated}/$$(dirname ${first}|sed 's,^test/,src/,') -D$$(dirname ${first}|awk -F/ 'BEGIN{OFS="_"}{$$1="";print toupper($$0 "__'$$(basename ${first} .c)'_private")}') ${first}
 
 rule ld
 	description = Link objects into ${out}
@@ -39,7 +39,7 @@ rule puml2cclass
 
 rule puml2xmi
 	description = Convert UML class diagram '${in}' into XMI
-	command = ${JAVA} -Djava.awt.headless=true ${pumlpath} -jar ${puml} -o $$(realpath --relative-to=$$(dirname ${in}) $$(dirname ${out})) -failfast2 -txmi:star ${pumlflags} ${in} || { rm -f ${out}; false; }
+	command = ${JAVA} -Djava.awt.headless=true ${pumlpath}:${generated}/$$(dirname ${first}):${generated}/$$(dirname ${first}|sed 's,^test/,src/,') -jar ${puml} -o $$(realpath --relative-to=$$(dirname ${in}) $$(dirname ${out})) -failfast2 -txmi:star ${pumlflags} ${in} || { rm -f ${out}; false; }
 
 rule xmi2c
 	description = Generate C file '${out}' from XMI '${in}'

@@ -1,9 +1,0 @@
-@startuml
-!include Object.puml
-!include BlockingQueue.puml
-namespace aeten.collection {
-	class ArrayBlockingQueue implements BlockingQueue {
-		+ {static} ArrayBlockingQueue(unsigned capacity)
-	}
-}
-@enduml

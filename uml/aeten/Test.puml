@@ -1,9 +1,0 @@
-@startuml
-!include Object.puml
-namespace aeten {
-	interface Test {
-		+ unsigned getValue()
-		+ setValue(unsigned value)
-	}
-}
-@enduml

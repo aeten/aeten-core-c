@@ -1,8 +1,9 @@
 @startuml
-!include Collection.puml
+!include Object.c
+!include Collection.c
 namespace aeten.collection {
 	interface List<T> extends Collection {
-		T get(usigned position)
+		T get(unsigned position)
 		+ set(unsigned position, T element)
 		+ add(T element)
 	}

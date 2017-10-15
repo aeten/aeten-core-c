@@ -60,7 +60,7 @@ else
 	VERBOSE=
 fi
 
-IQUOTES='generated/src generated/src/aeten generated/test generated/test/aeten'
+IQUOTES='src src/aeten generated/src generated/src/aeten generated/test generated/test/aeten'
 LDFLAGS+='-lpthread'
 
 ${VERSION} && { echo ${PROJECT_NAME}: version ${TAG}; exit 0; }
@@ -112,7 +112,9 @@ fi
 
 get-headers() {
 	local source_file="$1"; shift
-	local iquotes=$(${add_prefix} -iquote\  ${@})
+	local source_dir=$(dirname "${source_file}")
+	local iquotes=$(${add_prefix} -iquote\  $(echo ${@}) generated/${source_dir/test\//src\/} generated/${source_dir})
+	echo gcc -MM ${iquotes} "${source_file}" | sed '1 s,.\+: '"${source_file//./\\.}"',,; s/\\$//' >&2
 	gcc -MM ${iquotes} "${source_file}" | sed '1 s,.\+: '"${source_file//./\\.}"',,; s/\\$//'
 }
 
@@ -145,34 +147,34 @@ BUILD_TARGETS=$( (
 	build-target puml2xmi    src/ puml '\\\${output}/'    xmi ${PUML};
 	build-target xmi2c       src/ xmi  '\\\${generated}/' '{h,c}' ${XMI_FILES};
 #	build-target puml2c      src/ puml '\\\${generated}/' c   ${PUML};
-	for src in $(${replace_suffix} .puml .c ${PUML}); do
-		${target} --command cc --depends \\\${generated}/${src} '\\\${output}/'$(dirname ${src})/$(basename --suffix=.c ${src}).o
+	for _src in $(${replace_suffix} .puml .c ${PUML}); do
+		${target} --command cc --depends \\\${generated}/${_src} '\\\${output}/'$(dirname ${_src})/$(basename --suffix=.c ${_src}).o
 	done
-	for src in $(find src test -name \*.c); do
-		depedencies="--depends ${src} "
-		for header in $(get-headers ${src} ${IQUOTES}); do
-			test -f "${header}" && depedencies+="--depends $(${replace_prefix} 'generated/' '\\\${generated}/' ${header}) "
+	for _src in $(find src test -name \*.c); do
+		depedencies="${_src} "
+		for header in $(get-headers ${_src} ${IQUOTES} generated/$(dirname ${_src}) generated/$(dirname ${_src}|sed 's,^test/,src/,')); do
+			test -f "${header}" && depedencies+="$(${replace_prefix} 'generated/' '\\\${generated}/' ${header}) "
 			impl=$(${replace_suffix} .h .c ${header})
-			test -f "${impl}" && depedencies+="--depends $(${replace_prefix} 'generated/' '\\\${generated}/' ${impl}) "
+			test -f "${impl}" && depedencies+="$(${replace_prefix} 'generated/' '\\\${generated}/' ${impl}) "
 		done;
-		${target} --command cc ${depedencies} '\\\${output}/'$(${replace_suffix} .c .o ${src})
+		${target} --command cc $(${add_prefix} '--depends ' $(echo ${depedencies}|uniq)) '\\\${output}/'$(${replace_suffix} .c .o ${_src})
 	done
-	for ut_src in $(find test -name \*.c); do
-		executable=$(basename ${ut_src//_/-} .c);
-		depedencies=
-		for header in $(get-headers ${src} ${IQUOTES}); do
-			test -f "${header}" && depedencies+="--depends $(${replace_prefix} 'generated/' '\\\${output}/' $(${replace_suffix} .h .o ${header})) "
+	for _src in $(find test -name \*.c); do
+		executable=$(basename ${_src//_/-} .c);
+		depedencies="$(${replace_suffix} .c .o ${_src}) "
+		for header in $(get-headers ${_src} ${IQUOTES}); do
+			test -f "${header}" && depedencies+=" $(${replace_prefix} 'generated/' '' $(${replace_suffix} .h .o ${header})) "
 		done;
-		${target} --command ld ${depedencies} '\\\${output}/test/'${executable};
-		${target} --command run --depends \\\${output}/test/${executable} run-${executable};
+		${target} --command ld $(${add_prefix} '--depends \\\${output}/' $(${replace_prefix} 'generated/' '' ${depedencies}|uniq)) '\\\${output}/test/'${executable};
+		${target} --command run --depends "\\\${output}/test/${executable}" run-${executable};
 	done
 ) |sed '$ ! s/$/\\/')
 
-RUN_TESTS="$(for ut_src in $(find test -name \*.c); do
-	echo run-$(basename ${ut_src//_/-} .c);
+RUN_TESTS="$(for src in $(find test -name \*.c); do
+	echo run-$(basename ${src//_/-} .c);
 done|paste -sd' ' -)"
 
-check -m "Generates ${build_script}" -v ${AETEN_MAKE}/generate-builder -t ${CURDIR}/${template} "${@}" '>' ${CURDIR}/${build_script} <<EOF
+check -m "Generates ${build_script}" ${AETEN_MAKE}/generate-builder -t ${CURDIR}/${template} "${@}" '>' ${CURDIR}/${build_script} <<EOF
 PROJECT         = ${PWD##*/}
 BUILDER         = ${BUILDER}
 CFLAGS          = ${CFLAGS} $(${add_prefix} -W ${WARNING}) $(${add_prefix} -iquote\  ${IQUOTES})

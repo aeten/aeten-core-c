@@ -1,9 +1,0 @@
-@startuml
-!include Iterator.puml
-namespace aeten.collection {
-	interface Iterable<T> {
-		+ Iterator<T> iterator()
-	}
-	Iterable -> Iterator
-}
-@enduml
