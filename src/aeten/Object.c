@@ -10,4 +10,4 @@ namespace aeten {
 @enduml
 */
 
-void aeten__Object__finalize(aeten__Object* self) {}
+void aeten_Object_finalize(aeten_Object* self) {}

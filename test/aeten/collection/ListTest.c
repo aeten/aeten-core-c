@@ -1,22 +1,26 @@
 #include <stdio.h>
+#include <signal.h>
+#include <setjmp.h>
 
 #include "ListTest.h"
-#include "ArrayList.h"
-#include "Integer.h"
-#include "Number.h"
 
 #define import
+#include "ArrayList.h"
 #include "List.h"
-#include "aeten/test/Test.h"
-#undef import
+#include "Integer.h"
+#include "Number.h"
+#include "Object.h"
+#include "aeten/test/Testable.h"
 
 /*!
 @startuml
 !include Object.c
-!include aeten/test/Test.c
-!include List.c
+!include Integer.c
+!include aeten/test/Testable.c
+!include aeten/collection/List.c
+!include aeten/collection/ArrayList.c
 namespace aeten.collection {
-	class ListTest extends Object implements aeten.test.Test {
+	class ListTest implements aeten.test.Testable {
 		{static} + ListTest(List* list) <<constructor>>
 
 		{static} - counter: unsigned
@@ -26,8 +30,7 @@ namespace aeten.collection {
 @enduml
 */
 
-
-#define LIST(list, args) {#list, list(args)}
+#define LIST(list, args) {#list, list##_new(args)}
 struct test_list {
 	char *name;
 	List *list;
@@ -35,67 +38,73 @@ struct test_list {
 
 int main(int argc, char** argv) {
 	_counter=0;
-	bool result, is_nominal = true;
+	bool result;
 
-	struct test_list list[] = {LIST(new__aeten_collection__ArrayList, 0)};
+	struct test_list list[] = {LIST(ArrayList, 0)};
 
-	for (int i=0; i<sizeof(struct test_list); ++i) {
-		aeten_test__Test* test = new__aeten_collection__ListTest(list[i].list);
-		for (int j=0; j<2; ++j) {
-			result = (is_nominal? test->nominal(test): test->error(test));
-			if (!result) {
-				printf("[ FAIL ]", argv[0], list[i].name);
-				++_counter;
-			} else {
-				printf("[SUCCES]", argv[0], list[i].name);
-			}
-			printf(" Test %s of %s\n", argv[0], list[i].name);
-			list[i].list->finalize(list[i].list);
-			is_nominal = false;
-		};
+	for (int i=0; i<(sizeof(list)/sizeof(struct test_list)); ++i) {
+		Testable* test = ListTest_new(list[i].list);
+		result = test->test(test);
+		if (!result) {
+			printf("[ FAIL ]", argv[0], list[i].name);
+			++_counter;
+		} else {
+			printf("[SUCCES]", argv[0], list[i].name);
+		}
+		printf(" Test %s of %s\n", argv[0], list[i].name);
+		list[i].list->finalize(list[i].list);
 	}
 	return _counter;
 }
 
-void ListTest(struct _aeten_collection__ListTest* self, List* list) {
+void _ListTest(ListTest* self, List* list) {
 	self->_list = list;
 }
 
-static bool nominal(struct _aeten_collection__ListTest* self) {
+static jmp_buf  context;
+
+static void sig_handler(int signo) {
+	longjmp(context, 1);
+}
+
+static void catch_segv(int catch) {
+	struct sigaction sa;
+
+	if (catch) {
+		memset(&sa, 0, sizeof(struct sigaction));
+		sa.sa_handler = sig_handler;
+		sa.sa_flags = SA_RESTART;
+		sigaction(SIGSEGV, &sa, NULL);
+		sigaction(SIGABRT, &sa, NULL);
+	} else {
+		sigemptyset(&sa.sa_mask);
+		sigaddset(&sa.sa_mask, SIGSEGV);
+		sigaddset(&sa.sa_mask, SIGABRT);
+		sigprocmask(SIG_UNBLOCK, &sa.sa_mask, NULL);
+	}
+}
+
+static bool test(ListTest* self) {
 	List *list = self->_list;
-	aeten__Number *number;
-	for (int i=0; i<10; ++i) {
-		number = new__aeten__Integer(i);
-		list->add(list, (aeten__Object*)number);
-		number = (aeten__Number*)list->get(list, i);
+	Number *number;
+	int i;
+	for (i=0; i<10; ++i) {
+		number = Integer_new(i);
+		list->add(list, (Object*)number);
+		number = (Number*)list->get(list, i);
 		if (number->signedValue(number) != i) {
 			fprintf(stderr, "list->get(list, %d) != %d\n", i, i);
 			return false;
 		}
 	}
-	return true;
-}
-/*
-#ifndef NDEBUG
-#define _NDEBUG
-#define NDEBUG
-#endif
-*/
-static bool error(struct _aeten_collection__ListTest* self) {
-	List *list = self->_list;
-	int i;
-	aeten__Number *number;
-	for (i=0; i<10; ++i) {
-		number = new__aeten__Integer(i);
-		list->add(list, (aeten__Object*)number);
-	}
-	number = (aeten__Number*)list->get(list, i);
-	return number->signedValue(number) != i;
-}
-/*
-#ifdef _NDEBUG
-#undef _NDEBUG
-#undef NDEBUG
-#endif
-*/
 
+	catch_segv(1);
+	if (setjmp(context)) {
+		catch_segv(0);
+		int v = number->signedValue(number);
+		return (v != i);
+	}
+	number = (Number*)list->get(list, i);
+	catch_segv(0);
+	return false;
+}

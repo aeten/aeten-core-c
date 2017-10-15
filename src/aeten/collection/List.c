@@ -1,3 +1,6 @@
+#include "List.h"
+
+/*
 @startuml
 !include Object.c
 !include Collection.c
@@ -18,3 +21,4 @@ namespace aeten.collection {
 	end note
 }
 @enduml
+*/

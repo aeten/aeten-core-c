@@ -86,7 +86,7 @@ CLASS_ID=${CLASS_ID/:*/}
 NAMESPACE=${CLASS/${CLASS_TYPE}:${CLASS_ID}:/}
 NAMESPACE=${NAMESPACE/:*/}
 CLASS_NAME=${CLASS//*:/}
-C_CLASS=${NAMESPACE//./_}__${CLASS_NAME}
+C_CLASS=${NAMESPACE//./_}_${CLASS_NAME}
 
 PARENT=$(get_parent ${CLASS})
 PARENT=${PARENT/ */}
@@ -96,7 +96,7 @@ PARENT_ID=${PARENT_ID/:*/}
 PARENT_NAMESPACE=${PARENT/${PARENT_TYPE}:${PARENT_ID}:/}
 PARENT_NAMESPACE=${PARENT_NAMESPACE/:*/}
 PARENT_NAME=${PARENT//*:/}
-C_PARENT=${PARENT_NAMESPACE//./_}__${PARENT_NAME}
+C_PARENT=${PARENT_NAMESPACE//./_}_${PARENT_NAME}
 
 method_visitor_init='
 	local _class="${1}"; shift
@@ -154,16 +154,16 @@ method_visitor_init='
 		_parent_namespace=${_parent/${_parent_type}:${_parent_id}:/}
 		_parent_namespace=${_parent_namespace/:*/}
 		_parent_name=${_parent//*:/}
-		_c_parent=${_parent_namespace//./_}__${_parent_name}
+		_c_parent=${_parent_namespace//./_}_${_parent_name}
 		_type="${_c_parent}"
 		if [ ${_name} = ${CLASS_NAME} ]; then
-			_function=${C_CLASS}
+			_function=${C_CLASS}_new
 		else
-			_function=${C_CLASS}__${_name}
+			_function=${C_CLASS}_new_${_name}
 		fi
 	else
 		if ${_static} || [ ${CLASS_TYPE} = interface ]; then
-			_function=${C_CLASS}__${_name}
+			_function=${C_CLASS}_${_name}
 		else
 			_function=${_name}
 			_static_prefix="static "
@@ -176,7 +176,6 @@ method_visitor_init='
 		_arg=${_arg// /}
 		_args+="$(full_qualified_type "${_arg/*:/}") ${_arg/:*/}"
 	done
-#	echo "$_function(${_args})" >&2
 	if ( ! ${_static} ) || ${_constructor}; then
 		_args_without_self=${_args}
 		if [ -z "${_args/ /}" ]; then
@@ -195,7 +194,7 @@ class_visitor_init='
 	local namespace=${class/${classtype}:${classid}:/}
 	namespace=${namespace/:*/}
 	local classname=${class//*:/}
-	local c_class=${namespace//./_}__${classname}
+	local c_class=${namespace//./_}_${classname}
 '
 
 methods_class_visitor_init='
@@ -261,7 +260,7 @@ full_qualified_type() {
 		_classname=${_class//*:/}
 		_class_to_resolve=$(echo "${_type}"|sed 's/[^a-ZA-Z0-9^_]*\([a-ZA-Z0-9_]\+\)[^a-ZA-Z0-9^_]*/\1/')
 		if [ ${_classname} = ${_class_to_resolve} ]; then
-			echo $(echo "${_type}"|sed 's/\([^a-ZA-Z0-9^_]*\)\([a-ZA-Z0-9_]\+\)\([^a-ZA-Z0-9^_]*\)/\1'${_namespace//./_}__${_classname}'\3/')
+			echo $(echo "${_type}"|sed 's/\([^a-ZA-Z0-9^_]*\)\([a-ZA-Z0-9_]\+\)\([^a-ZA-Z0-9^_]*\)/\1'${_namespace//./_}_${_classname}'\3/')
 			return 0
 		fi
 	done
@@ -305,11 +304,7 @@ typedef_method_visitor() {
 	eval "${method_visitor_init}"
 	[ "${_stereotype}" = "constructor" ] && return
 	( ! ${_static} ) && {
-#		if [ ${CLASS_TYPE} = interface ]; then
-			echo "typedef ${_type} (*${C_CLASS}__${_name}_t)($(echo "${_args}"|sed "s/^${c_class}\\* _\?self/struct _${C_CLASS}* self/"));"
-#		else
-#			echo "typedef ${_type} (*${C_CLASS}__${_name}_t)($(echo "${_args}"|sed "s/^${c_class}\\* _self/${C_PARENT}* self/"));"
-#		fi
+			echo "typedef ${_type} (*${C_CLASS}_${_name}_t)($(echo "${_args}"|sed "s/^${c_class}\\* _\?self/struct _${C_CLASS}* self/"));"
 	}
 }
 
@@ -346,7 +341,7 @@ static_declaration_attribute_visitor() {
 callback_method_visitor() {
 	eval "${method_visitor_init}"
 	[ "${_stereotype}" = "constructor" ] && return
-	( ! ${_static} ) && echo -e "\t${C_CLASS}__${_name}_t ${_name};"
+	( ! ${_static} ) && echo -e "\t${C_CLASS}_${_name}_t ${_name};"
 }
 
 declaration_method_visitor() {
@@ -355,10 +350,10 @@ declaration_method_visitor() {
 	local _args
 
 	if ${_static} || { ${_default} && [ ${CLASS_TYPE} = interface ]; } || { ( ! ${_default} ) && [ ${CLASS_TYPE} = class ]; }; then
-		if $_static || [ ${CLASS_TYPE} = interface ] || [ ${out} = c_source ]; then
+		if ${_static} || [ ${CLASS_TYPE} = interface ] || [ ${out} = c_source ]; then
 			if ${_constructor}; then
-				echo "${_type}       ${_function}(${_args_without_self});"
-				echo "${_type}* new__${_function}(${_args_without_self});"
+				echo "${_type}  ${_function/_new/_newInStack}(${_args_without_self});"
+				echo "${_type} *${_function}(${_args_without_self});"
 			else
 				echo "${_static_prefix}${_type} ${_function}($(echo "${_args}"|sed "s/^${c_class}\\* _self/${C_CLASS}* self/"));"
 			fi
@@ -380,7 +375,7 @@ ${_static_prefix}${_type} ${_function}(${_args}) {
 EOF
 		if ${_constructor}; then
 			cat - <<EOF
-	_${c_class^^}__INIT
+	_${c_class^^}_INIT
 	// TODO: Implement
 	return (${_type})self;
 }
@@ -406,14 +401,10 @@ helper_method_visitor() {
 
 	if ( ! ${_static} ) && [ "${_stereotype}" != constructor ]; then
 		if ( ! ${_default} ); then
-#${_static_prefix}${_type} ${_function}(${_args/${c_class}\* self/struct _${C_CLASS}* self});
-#${_type} ${C_CLASS}__${_function}(${_args}) {
-#	return ${_function}((struct _${C_CLASS}*)$(echo "${_args/self/self->_self}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
-#}
 			cat - <<EOF
-${_static_prefix}${_type} ${_function}(${_args/${c_class}\* self/struct _${C_CLASS}* self});
-${_type} ${C_CLASS}__${_function}(${_args/${c_class}\* self/struct _${C_CLASS}* self}) {
-	return ${_function}((struct _${C_CLASS}*)$(echo "${_args/self/self->_self}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
+${_static_prefix}${_type} ${_function}(${_args/${c_class}\* self/${C_CLASS}* self});
+${_type} ${C_CLASS}_${_function}(${_args/${c_class}\* self/${C_CLASS}* self}) {
+	return ${_function}((${C_CLASS}*)$(echo "${_args/self/self->_self}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
 }
 
 EOF
@@ -421,17 +412,17 @@ EOF
 	else
 		if ${_constructor}; then
 			cat - <<EOF
-static void ${_name}(${_args/${c_class}\* self/struct _${C_CLASS}* self});
-${C_PARENT}* new__${_function}(${_args_without_self}) {
-	struct _${C_CLASS}* self = malloc(sizeof(struct _${C_CLASS}));
-	_${C_CLASS}__init(self);
-	${_name}($(echo "${_args}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
+void _${_name}(${_args/${c_class}\* self/${C_CLASS}* self});
+${C_PARENT}* ${_function}(${_args_without_self}) {
+	${C_CLASS}* self = malloc(sizeof(${C_CLASS}));
+	_${C_CLASS}_init(self);
+	_${_name}($(echo "${_args}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
 	return (${C_PARENT}*)self;
 }
-inline ${C_PARENT} ${_function}(${_args_without_self}) {
-	struct _${C_CLASS}* self = alloca(sizeof(struct _${C_CLASS}));
-	_${C_CLASS}__init(self);
-	${_name}($(echo "${_args}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
+inline ${C_PARENT} ${_function/_new/_newInStack}(${_args_without_self}) {
+	${C_CLASS}* self = alloca(sizeof(${C_CLASS}));
+	_${C_CLASS}_init(self);
+	_${_name}($(echo "${_args}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
 	return *((${C_PARENT}*)self);
 }
 EOF
@@ -443,11 +434,10 @@ constructor_definition_method_visitor() {
 	eval "${method_visitor_init}"
 	if ( ! ${_static} ) && [ "${_stereotype}" != constructor ]; then
 		if ${_default}; then
-			echo -e "\tself->${_name} = (${C_CLASS}__${_name}_t)${c_class}__${_name};"
+			echo -e "\tself->${_name} = (${C_CLASS}_${_name}_t)${c_class}_${_name};"
 		else
-			echo -e "\tself->${_name} = ${C_CLASS}__${_name};"
+			echo -e "\tself->${_name} = ${C_CLASS}_${_name};"
 		fi
-#		fi
 	fi
 }
 
@@ -618,27 +608,14 @@ EOF
 	fi
 	cat - <<EOF
 
-/*
-#ifndef _${C_CLASS^^}_PRIVATE
-#ifdef _NAMESPACE
-#define _S(ns) _S_(ns)
-#define _S_(ns) #ns
-#define _IS_SAME(ns) strcmp(_S(ns), "${NAMESPACE}")
-#if _IS_SAME == 0
-#define ${CLASS_NAME} ${C_CLASS}
-#define new__${CLASS_NAME} new__${C_CLASS}
-#endif
-#endif // _NAMESPACE
-#endif // _${C_CLASS^^}_PRIVATE
-*/
-
 #endif // ${c_class^^}_H
 
 #ifndef _${C_CLASS^^}_PRIVATE
-#ifdef import
-#define ${CLASS_NAME} ${C_CLASS}
-#define new__${CLASS_NAME} new__${C_CLASS}
-#endif
+#	ifdef import
+#		define ${CLASS_NAME} ${C_CLASS}
+#		define ${CLASS_NAME}_new  ${C_CLASS}_new
+#		define ${CLASS_NAME}_newInStack ${C_CLASS}_newInStack
+#	endif
 #endif // _${C_CLASS^^}_PRIVATE
 EOF
 }
@@ -652,24 +629,28 @@ c_private_class_visitor() {
 #include <assert.h>
 #include <string.h>
 
-struct _${c_class} {
+#define ${CLASS_NAME} ${C_CLASS}
+#define ${CLASS_NAME}_new  ${C_CLASS}_new
+#define ${CLASS_NAME}_newInStack ${C_CLASS}_newInStack
+
+typedef struct _${c_class} {
 	struct _${c_class}* const _self;
 $(for cls in ${CLASS_HIERARCHY}; do
 	visit_class methods ${cls}
 	visit_class attributes_instance ${cls}
 done)
-};
+} ${c_class};
 
-static void _${C_CLASS}__init(struct _${c_class}* self);
+void _${C_CLASS}_init(${c_class}* self);
 
 $(for cls in ${CLASS_HIERARCHY}; do
 	visit_class attributes_static ${cls}
 	visit_class helper_methods ${cls}
 done)
 
-static void _${C_CLASS}__init(struct _${c_class}* self) {
+void _${C_CLASS}_init(${c_class}* self) {
 	assert(self != NULL);
-	memcpy(self, &self, sizeof(struct _${C_CLASS}*));
+	memcpy(self, &self, sizeof(${C_CLASS}*));
 $(for _cls in ${CLASS_HIERARCHY}; do
 	visit_class constructor_definition ${_cls}
 done)

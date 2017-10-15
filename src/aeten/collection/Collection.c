@@ -1,3 +1,6 @@
+#include "Collection.h"
+
+/*
 @startuml
 !include Object.c
 namespace aeten.collection {
@@ -9,3 +12,4 @@ namespace aeten.collection {
 	end note
 }
 @enduml
+*/

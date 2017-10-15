@@ -1,5 +1,4 @@
 #include "Integer.h"
-#include "Number.h"
 
 /*
 @startuml
@@ -14,35 +13,35 @@ namespace aeten {
 @enduml
 */
 
-void Integer(struct _aeten__Integer* self, int value) {
+void _Integer(Integer* self, int value) {
 	self->_value = value;
 }
 
-void from_number(struct _aeten__Integer* self, aeten__Number *value) {
+void _from_number(Integer* self, aeten_Number *value) {
 	self->_value = value->signedValue(value);
 }
 
-long signedLongValue(struct _aeten__Integer* self) {
+long signedLongValue(Integer* self) {
 	return (long) self->_value;
 }
 
-int signedValue(struct _aeten__Integer* self) {
+int signedValue(Integer* self) {
 	return self->_value;
 }
 
-unsigned unsignedValue(struct _aeten__Integer* self) {
+unsigned unsignedValue(Integer* self) {
 	return (unsigned) self->_value;
 }
 
-uint64_t unsignedLongValue(struct _aeten__Integer* self) {
+uint64_t unsignedLongValue(Integer* self) {
 	return (unsigned long) self->_value;
 }
 
-float floatValue(struct _aeten__Integer* self) {
+float floatValue(Integer* self) {
 	return (float) self->_value;
 }
 
-double doubleValue(struct _aeten__Integer* self) {
+double doubleValue(Integer* self) {
 	return (double) self->_value;
 }
 

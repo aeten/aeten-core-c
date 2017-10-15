@@ -1,11 +1,14 @@
 #include <stdio.h>
 
-#define import
 #include "RunnableTest.h"
+
+#define import
+#include "Runnable.h"
 
 /*
 @startuml RunnableTest
-!include Runnable.puml
+!include Object.c
+!include Runnable.c
 namespace aeten {
 	class RunnableTest implements Runnable {
 		+ {static} RunnableTest() <<constructor>>
@@ -16,22 +19,36 @@ namespace aeten {
 @enduml
 */
 
-static inline void RunnableTest(struct _aeten__RunnableTest* self) {
+inline void _RunnableTest(RunnableTest* self) {
 	self->result = (10 * ++_count);
 }
 
-static inline void run(struct _aeten__RunnableTest* self) {
-	printf("%d\n", self->result);
+static inline void run(RunnableTest* self) {
+	self->result++;
 }
 
 int main(int argc, char** argv) {
 	// Heap allocation
-	Runnable* heap_test = new__aeten__RunnableTest();
-	heap_test->run(heap_test);
-	heap_test->finalize(heap_test);
+	RunnableTest *test = (RunnableTest*)RunnableTest_new();
+	if (test->result != 10) {
+		return 1;
+	}
+	test->run(test);
+	if (test->result != 11) {
+		return 2;
+	}
+	test->finalize(test);
+	free(test);
 	// Stack allocation
-	Runnable stack_test = aeten__RunnableTest();
+	Runnable stack_test = RunnableTest_newInStack();
+	test = (RunnableTest*) &stack_test;
+	if (test->_self->result != 20) {
+		return 4;
+	}
 	stack_test.run(&stack_test);
+	if (test->_self->result != 21) {
+		return 8;
+	}
 	stack_test.finalize(&stack_test);
 	return 0;
 }

@@ -1,3 +1,6 @@
+#include "Runnable.h"
+
+/*
 @startuml
 !include Object.c
 namespace aeten {
@@ -6,3 +9,4 @@ namespace aeten {
 	}
 }
 @enduml
+*/

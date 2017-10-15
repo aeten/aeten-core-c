@@ -33,7 +33,6 @@ $(${AETEN_CLI_DIR}/aeten-ads init - -- "${@}" << EOF
 #VERSION: ${TAG}
 #SHORT_DESCRIPTION: Æten core library building configuration script.
 #DESCRIPTION: Configures and generates building file (Ninja or GNU Make).
-builder <builder>: The target builder tool, _ninja_ or _make_.
 prefix <prefix-path>: The prefix path for installation, _/usr/local_ by default.
 out <directory>: The output build directory, _${CURDIR}/build_ by default.
 conf <config-file>: The configuration bash file path to source, _config.sh_ by default.
@@ -51,7 +50,7 @@ EOF
 : ${WARNING:=error}
 : ${CONFIG:=${CURDIR}/config.sh}
 : ${OUT:=${CURDIR}/build}
-: ${GENERIC_REPLACEMENT:=aeten__Object*}
+: ${GENERIC_REPLACEMENT:=aeten_Object*}
 : ${VERSION:=false}
 : ${VERBOSE:=false}
 if [ ${VERBOSE} = true ]; then
@@ -70,13 +69,13 @@ ${VERSION} && { echo ${PROJECT_NAME}: version ${TAG}; exit 0; }
 INSTALL_LIB_DIR="${PREFIX}/lib"
 INSTALL_BIN_DIR="${PREFIX}/bin"
 
-$(${AETEN_CLI} import check fatal confirm query)
+$(${AETEN_CLI} import check inform fatal confirm query)
 
-: ${BUILDER:=$(confirm --no 'Use Ninja instead of GNU Make?' && echo ninja || echo make)}
+BUILDER=ninja
 : ${PREFIX:=$(query 'Enter the prefix installation path.')}
 : ${PLANTUML:=$(query 'Enter the plantuml jar path.')}
 
-TEMPLATE=build-template.ninja
+TEMPLATE=template.ninja
 case "${BUILDER}" in
 	ninja)
 		template=${TEMPLATE}
@@ -88,7 +87,6 @@ case "${BUILDER}" in
 	*) fatal 'Builder must be "ninja" or "make"';;
 esac
 
-check="${AETEN_CLI} check"
 add_prefix="${AETEN_MAKE}/generate-builder add-prefix"
 add_suffix="${AETEN_MAKE}/generate-builder add-suffix"
 replace_suffix="${AETEN_MAKE}/generate-builder replace-suffix"
@@ -110,11 +108,26 @@ if [ -n "${DESCRIPTION}" ]; then
 	fi
 fi
 
+get-puml-include() {
+	local _src="${1}"
+	local _inc
+	local _puml
+	local _dir
+	for _inc in $(sed -n 's/^!include \([^!]\+\)/\1/p' "${_src}"); do
+		for _dir in $(dirname ${_src}) $(${replace_prefix} test/ src/ $(dirname ${_src})) ${IQUOTES}; do
+			_puml="${_dir}/${_inc}"
+			[ -f "${_puml}" ] && { echo "${_puml}"; break; }
+			_puml=${_puml/.c/.puml}
+			[ -f "${_puml}" ] && { echo "${_puml}"; break; }
+		done
+	done
+}
+
 get-headers() {
 	local source_file="$1"; shift
 	local source_dir=$(dirname "${source_file}")
 	local iquotes=$(${add_prefix} -iquote\  $(echo ${@}) generated/${source_dir/test\//src\/} generated/${source_dir})
-	echo gcc -MM ${iquotes} "${source_file}" | sed '1 s,.\+: '"${source_file//./\\.}"',,; s/\\$//' >&2
+	inform "Resolving headers needed by ${source_file}" >&2
 	gcc -MM ${iquotes} "${source_file}" | sed '1 s,.\+: '"${source_file//./\\.}"',,; s/\\$//'
 }
 
@@ -126,6 +139,7 @@ build-target() {
 	local out_suffix=$1; shift
 	local ext
 	local output
+	inform "Building target for ${command} command from ${in_suffix}" >&2
 	for input in $@; do
 		output=" ${out_prefix}$(dirname ${input}|sed 's,^\\\${output}/,,')/$(basename --suffix=.${in_suffix} ${input}).${out_suffix}"
 		${target} --command ${command} --depends ${input} ${output}
@@ -143,29 +157,29 @@ PUML_PATH="-Dplantuml.include.path=src:src/aeten:generated/src:generated/src/aet
 PUML_FLAGS=$(${add_suffix} "=${GENERIC_REPLACEMENT}" $(${add_prefix} -D {A..Z}))
 
 BUILD_TARGETS=$( (
-	build-target puml2xmi    ''   c    '\\\${output}/'    xmi ${SRC};
-	build-target puml2xmi    src/ puml '\\\${output}/'    xmi ${PUML};
 	build-target xmi2c       src/ xmi  '\\\${generated}/' '{h,c}' ${XMI_FILES};
-#	build-target puml2c      src/ puml '\\\${generated}/' c   ${PUML};
+
+	for _src in ${SRC} ${PUML}; do
+		inform "Building target for puml2xmi command from ${_src}" >&2
+		${target} --command puml2xmi --depends ${_src} $(${add_prefix} '--depends \\\${output}/' $(${replace_suffix} .puml .xmi $(${replace_suffix} .c .xmi $(get-puml-include ${_src})))) '\\\${output}/'$(dirname ${_src})/$(basename $(basename ${_src} .c) .puml).xmi
+	done
+
 	for _src in $(${replace_suffix} .puml .c ${PUML}); do
+		inform "Building target cc from ${_src}" >&2
 		${target} --command cc --depends \\\${generated}/${_src} '\\\${output}/'$(dirname ${_src})/$(basename --suffix=.c ${_src}).o
 	done
+
 	for _src in $(find src test -name \*.c); do
-		depedencies="${_src} "
-		for header in $(get-headers ${_src} ${IQUOTES} generated/$(dirname ${_src}) generated/$(dirname ${_src}|sed 's,^test/,src/,')); do
-			test -f "${header}" && depedencies+="$(${replace_prefix} 'generated/' '\\\${generated}/' ${header}) "
-			impl=$(${replace_suffix} .h .c ${header})
-			test -f "${impl}" && depedencies+="$(${replace_prefix} 'generated/' '\\\${generated}/' ${impl}) "
-		done;
-		${target} --command cc $(${add_prefix} '--depends ' $(echo ${depedencies}|uniq)) '\\\${output}/'$(${replace_suffix} .c .o ${_src})
+		inform "Building target cc from ${_src}" >&2
+		${target} --command cc --depends ${_src} $(${add_prefix} '--depends \\\${generated}/' $(dirname ${_src})/$(basename --suffix=.c ${_src}).h $(${replace_suffix} .c .h $(get-puml-include ${_src}))) '\\\${output}/'$(dirname ${_src})/$(basename --suffix=.c ${_src}).o
 	done
+
 	for _src in $(find test -name \*.c); do
 		executable=$(basename ${_src//_/-} .c);
 		depedencies="$(${replace_suffix} .c .o ${_src}) "
-		for header in $(get-headers ${_src} ${IQUOTES}); do
-			test -f "${header}" && depedencies+=" $(${replace_prefix} 'generated/' '' $(${replace_suffix} .h .o ${header})) "
-		done;
-		${target} --command ld $(${add_prefix} '--depends \\\${output}/' $(${replace_prefix} 'generated/' '' ${depedencies}|uniq)) '\\\${output}/test/'${executable};
+		inform "Building target ld from ${_src}" >&2
+		${target} --command ld $(${add_prefix} '--depends \\\${output}/' $(${replace_suffix} .c .o ${_src} $(get-puml-include ${_src}))) '\\\${output}/test/'${executable}
+		inform "Building target run from ${_src}" >&2
 		${target} --command run --depends "\\\${output}/test/${executable}" run-${executable};
 	done
 ) |sed '$ ! s/$/\\/')
@@ -192,7 +206,6 @@ BUILD_TARGETS   = ${BUILD_TARGETS}
 RUN_TESTS       = ${RUN_TESTS}
 OUT             = ${OUT}
 GENERATED       = ${CURDIR}/generated
-API             = $(${add_prefix} '\\\${generated}/' $(${replace_suffix} .c .h ${SRC})) $(${add_prefix} '\\\${generated}/' $(${replace_suffix} .puml .h ${PUML})) $(${add_prefix} '\\\${generated}/' $(${replace_suffix} .puml .c ${PUML}))
 SRC             = $(echo ${SRC}|tr ' ' ':')
 IPATH           = ${IQUOTES// /:}
 EOF
