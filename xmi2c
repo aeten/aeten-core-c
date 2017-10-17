@@ -78,7 +78,7 @@ CLASSES=$(xmlstarlet el -v "${XMI}" | awk '/Class\[/ {
 }')
 
 CLASS=$(echo "${CLASSES}"|awk -F: '{if ($4 == "'$(basename ${XMI} .xmi)'") {print}}')
-[ -z "${CLASS}" ] && { echo Class $(basename ${XMI} .xmi) not found in ${CLASSES} ; exit 1; }
+[ -z "${CLASS}" ] && { echo Class $(basename ${XMI} .xmi) not found in ${CLASSES}; exit 1; }
 OBJECT=$(echo "${CLASSES}"|awk -F: '{if (($3 == "aeten") && ($4 == "Object")) {print}}')
 CLASS_TYPE=${CLASS/:*/}
 CLASS_ID=${CLASS/${CLASS_TYPE}:/}
@@ -110,6 +110,7 @@ method_visitor_init='
 	local _default
 	local _static
 	local _public
+	local _override
 	local _parent
 	local _parent_type
 	local _parent_id
@@ -140,6 +141,11 @@ method_visitor_init='
 	else
 		_default=false
 	fi
+	if [ "${_stereotype/*override*/override}" = override ]; then
+		_override=true
+	else
+		_override=false
+	fi
 	if [ ${_name} = ${CLASS_NAME} ] || [ "${_stereotype/*constructor*/constructor}" = constructor ]; then
 		_constructor=true
 	else
@@ -157,12 +163,14 @@ method_visitor_init='
 		_c_parent=${_parent_namespace//./_}_${_parent_name}
 		_type="${_c_parent}"
 		if [ ${_name} = ${CLASS_NAME} ]; then
-			_function=${C_CLASS}_new
+			_function=new_${C_CLASS}
+			_name=
 		else
-			_function=${C_CLASS}_new_${_name}
+			_name=_${_name}
+			_function=new_${C_CLASS}${_name}
 		fi
 	else
-		if ${_static} || [ ${CLASS_TYPE} = interface ]; then
+		if ${_static} && ( ! ${_override} ) || [ ${CLASS_TYPE} = interface ]; then
 			_function=${C_CLASS}_${_name}
 		else
 			_function=${_name}
@@ -176,13 +184,11 @@ method_visitor_init='
 		_arg=${_arg// /}
 		_args+="$(full_qualified_type "${_arg/*:/}") ${_arg/:*/}"
 	done
-	if ( ! ${_static} ) || ${_constructor}; then
-		_args_without_self=${_args}
-		if [ -z "${_args/ /}" ]; then
-			_args="${c_class}* self"
-		else
-			_args="${c_class}* self, ${_args}";
-		fi
+	_args_without_self=${_args}
+	if [ -z "${_args/ /}" ]; then
+		_args="${c_class}* self"
+	else
+		_args="${c_class}* self, ${_args}";
 	fi
 '
 
@@ -211,14 +217,14 @@ attributes_class_visitor_init='
 attributes_visitor_init='
 	local _attribute=${@}
 	_attribute=$(echo "${_attribute}"|tr "\n" " ")
-	local _name=${_attribute/:*/}
-	local _type=${_attribute/${_name}:/}
-	_type=${_type/«*/}
-	local _stereotypes=${_attribute/${_name}:${_type}/}
+	local _name="${_attribute/:*/}"
+	local _type="${_attribute/${_name}:/}"
+	_type="${_type/«*/}"
+	local _stereotypes="${_attribute/${_name}:${_type}/}"
 	_name="${_name// /}"
 	_type="${_type// /}"
 	_type=$(full_qualified_type "${_type/\[\]/*}")
-	local _stereotypes=${_stereotypes//[«»]/ }
+	local _stereotypes="${_stereotypes//[«»]/ }"
 	local _public
 	local _static
 	if [ "${_stereotypes/*classifier*/classifier}" = classifier ]; then
@@ -264,7 +270,7 @@ full_qualified_type() {
 			return 0
 		fi
 	done
-	echo ${_type}
+	echo "${_type}"
 }
 
 
@@ -278,7 +284,7 @@ visit_attribute() {
 	local _visitor="${1}_attribute_visitor"; shift
 	local _class="$1"; shift
 	local _attribute="${1}"
-	eval ${_visitor} "${_class}" "${_attribute}"
+	eval "${_visitor} '${_class}' '${_attribute}'"
 }
 
 visit_method() {
@@ -341,18 +347,18 @@ static_declaration_attribute_visitor() {
 callback_method_visitor() {
 	eval "${method_visitor_init}"
 	[ "${_stereotype}" = "constructor" ] && return
-	( ! ${_static} ) && echo -e "\t${C_CLASS}_${_name}_t ${_name};"
+	( ! ${_override} ) && ( ! ${_static} ) && echo -e "\t${C_CLASS}_${_name}_t ${_name};"
 }
 
 declaration_method_visitor() {
 	eval "${method_visitor_init}"
 	local _cls
 	local _args
-
-	if ${_static} || { ${_default} && [ ${CLASS_TYPE} = interface ]; } || { ( ! ${_default} ) && [ ${CLASS_TYPE} = class ]; }; then
+	${_override} && return 0
+	if ${_static}  || { ${_default} && [ ${CLASS_TYPE} = interface ]; } || { ( ! ${_default} ) && [ ${CLASS_TYPE} = class ]; }; then
 		if ${_static} || [ ${CLASS_TYPE} = interface ] || [ ${out} = c_source ]; then
 			if ${_constructor}; then
-				echo "${_type}  ${_function/_new/_newInStack}(${_args_without_self});"
+				echo "${_type}  ${_function/${CLASS_NAME}/${CLASS_NAME}_fromStack}(${_args_without_self});"
 				echo "${_type} *${_function}(${_args_without_self});"
 			else
 				echo "${_static_prefix}${_type} ${_function}($(echo "${_args}"|sed "s/^${c_class}\\* _self/${C_CLASS}* self/"));"
@@ -399,40 +405,38 @@ helper_method_visitor() {
 	eval "${method_visitor_init}"
 	local _cls
 
-	if ( ! ${_static} ) && [ "${_stereotype}" != constructor ]; then
-		if ( ! ${_default} ); then
+	if  ( ! ${_constructor} ); then
+		if  ${override} || ( ! ${_static} ) && ( ! ${_default} ); then
 			cat - <<EOF
-${_static_prefix}${_type} ${_function}(${_args/${c_class}\* self/${C_CLASS}* self});
-${_type} ${C_CLASS}_${_function}(${_args/${c_class}\* self/${C_CLASS}* self}) {
-	return ${_function}((${C_CLASS}*)$(echo "${_args/self/self->_self}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
+static inline ${_type} ${_name}(struct _${_args/${c_class}\* self/${C_CLASS}* self});
+${_type} ${C_CLASS}_${_function}(struct _${_args/${c_class}\* self/${C_CLASS}* self}) {
+	return ${_function}((struct _${C_CLASS}*)$(echo "${_args/self/self->_self}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
 }
 
 EOF
 		fi
 	else
-		if ${_constructor}; then
-			cat - <<EOF
-void _${_name}(${_args/${c_class}\* self/${C_CLASS}* self});
+		cat - <<EOF
+inline static void ${CLASS_NAME}_new${_name}(${_args/${c_class}\* self/${C_CLASS}* self});
 ${C_PARENT}* ${_function}(${_args_without_self}) {
 	${C_CLASS}* self = malloc(sizeof(${C_CLASS}));
 	_${C_CLASS}_init(self);
-	_${_name}($(echo "${_args}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
+	${CLASS_NAME}_new${_name}($(echo "${_args}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
 	return (${C_PARENT}*)self;
 }
-inline ${C_PARENT} ${_function/_new/_newInStack}(${_args_without_self}) {
+inline ${C_PARENT} ${_function/${CLASS_NAME}/${CLASS_NAME}_fromStack}(${_args_without_self}) {
 	${C_CLASS}* self = alloca(sizeof(${C_CLASS}));
 	_${C_CLASS}_init(self);
-	_${_name}($(echo "${_args}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
+	${CLASS_NAME}_new${_name}($(echo "${_args}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
 	return *((${C_PARENT}*)self);
 }
 EOF
-		fi
 	fi
 }
 
 constructor_definition_method_visitor() {
 	eval "${method_visitor_init}"
-	if ( ! ${_static} ) && [ "${_stereotype}" != constructor ]; then
+	if ${_override} || ( ! ${_static} ) && ( ! ${_constructor} ); then
 		if ${_default}; then
 			echo -e "\tself->${_name} = (${C_CLASS}_${_name}_t)${c_class}_${_name};"
 		else
@@ -612,9 +616,9 @@ EOF
 
 #ifndef _${C_CLASS^^}_PRIVATE
 #	ifdef import
-#		define ${CLASS_NAME} ${C_CLASS}
-#		define ${CLASS_NAME}_new  ${C_CLASS}_new
-#		define ${CLASS_NAME}_newInStack ${C_CLASS}_newInStack
+#		define     ${CLASS_NAME}               ${C_CLASS}
+#		define new_${CLASS_NAME}           new_${C_CLASS}
+#		define new_${CLASS_NAME}_fromStack new_${C_CLASS}_fromStack
 #	endif
 #endif // _${C_CLASS^^}_PRIVATE
 EOF
@@ -629,9 +633,9 @@ c_private_class_visitor() {
 #include <assert.h>
 #include <string.h>
 
-#define ${CLASS_NAME} ${C_CLASS}
-#define ${CLASS_NAME}_new  ${C_CLASS}_new
-#define ${CLASS_NAME}_newInStack ${C_CLASS}_newInStack
+#define     ${CLASS_NAME}               ${C_CLASS}
+#define new_${CLASS_NAME}           new_${C_CLASS}
+#define new_${CLASS_NAME}_fromStack new_${C_CLASS}_fromStack
 
 typedef struct _${c_class} {
 	struct _${c_class}* const _self;
@@ -643,9 +647,9 @@ done)
 
 void _${C_CLASS}_init(${c_class}* self);
 
-$(for cls in ${CLASS_HIERARCHY}; do
-	visit_class attributes_static ${cls}
-	visit_class helper_methods ${cls}
+$(for _cls in ${CLASS_HIERARCHY}; do
+	visit_class attributes_static ${_cls}
+	visit_class helper_methods ${_cls}
 done)
 
 void _${C_CLASS}_init(${c_class}* self) {

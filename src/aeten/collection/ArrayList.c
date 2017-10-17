@@ -16,7 +16,7 @@ namespace aeten.collection {
 		- elements : T[]
 
 		{static} + ArrayList(unsigned initial_capacity) <<constructor>>
-		+ finalize() <<override>>
+		# finalize() <<override>>
 	}
 	note right of ArrayList::ArrayList
 		Constructor
@@ -25,7 +25,7 @@ namespace aeten.collection {
 @enduml
 */
 
-void _ArrayList(ArrayList *self, unsigned initial_capacity) {
+void ArrayList_new(ArrayList *self, unsigned initial_capacity) {
 	if (initial_capacity>0) {
 		self->_elements = malloc(initial_capacity * sizeof(self->_elements));
 		check(self->_elements != NULL, NoSuchMemoryError, "initial_capacity=%u", initial_capacity);
@@ -43,12 +43,12 @@ void finalize(ArrayList *self) {
 	}
 }
 
-void set(ArrayList *self, unsigned int position, Object *element) {
+void set(ArrayList *self, unsigned int position, void *element) {
 	check(position < self->_size, IndexOutOfBoundException, "position=%u; array.length=%u", position, self->_size);
 	self->_elements[position] = element;
 }
 
-void add(ArrayList *self, Object *element) {
+void add(ArrayList *self, void *element) {
 	if (self->_capacity == self->_size) {
 		unsigned int capacity = ((self->_capacity * 3) / 2) + 1;
 		self->_elements = realloc(self->_elements, capacity * sizeof(self->_elements));
@@ -58,7 +58,7 @@ void add(ArrayList *self, Object *element) {
 	self->_elements[self->_size++] = element;
 }
 
-Object *get(ArrayList *self, unsigned int position) {
+void *get(ArrayList *self, unsigned int position) {
 	check(position < self->_size, IndexOutOfBoundException, "position=%u; array.length=%u", position, self->_size);
 	return self->_elements[position];
 }

@@ -2,7 +2,7 @@
 
 set -e
 
-CURDIR=$(dirname "${0}")
+CURDIR=$(readlink -f $(dirname "${0}"))
 AETEN_MAKE=${CURDIR}/cots/aeten-make
 AETEN_CLI_DIR=${CURDIR}/cots/aeten-cli
 AETEN_CLI=${AETEN_CLI_DIR}/aeten-cli.sh
@@ -34,13 +34,16 @@ $(${AETEN_CLI_DIR}/aeten-ads init - -- "${@}" << EOF
 #SHORT_DESCRIPTION: Æten core library building configuration script.
 #DESCRIPTION: Configures and generates building file (Ninja or GNU Make).
 prefix <prefix-path>: The prefix path for installation, _/usr/local_ by default.
+src <directory>: The sources directory
+test <directory>: The sources directory for tests
 out <directory>: The output build directory, _${CURDIR}/build_ by default.
 conf <config-file>: The configuration bash file path to source, _config.sh_ by default.
 plantuml <jar-file>: The PlantUML jar file path.
 object-model|M <model>: The object model generation mode, _simple_ support only one parent per interface whereas _complete_ support several and provides castable ojects (ie. cast a list to iterable).
-generic-replacement|R <replacement>: The parameterized type replacement, _aeten\\_\\_Object\*_ by default (may be _void\*_ for example).
+generic-replacement|R <replacement>: The parameterized type replacement, _void\*_ by default (may be _aeten\\_Object\*_ for example).
 gcc <gcc-exec-file>: The GCC executable file path.
 warning <list>: The warning flags to activate, _all_ and _error_ by default.
+qtcreator: Create QtCreator project target
 verbose: Verbose build output.
 version|V: Shows ${PROJECT_NAME} version.
 EOF
@@ -49,17 +52,29 @@ EOF
 : ${PREFIX:=/usr/local}
 : ${WARNING:=error}
 : ${CONFIG:=${CURDIR}/config.sh}
-: ${OUT:=${CURDIR}/build}
-: ${GENERIC_REPLACEMENT:=aeten_Object*}
+: ${SRC:=src}
+: ${TEST:=test}
+: ${OUT:=build}
+: ${GENERIC_REPLACEMENT:=void*}
 : ${VERSION:=false}
 : ${VERBOSE:=false}
+: ${QTCREATOR:=false}
+: ${GEN_DIR:=${OUT}/generated}
+SRC=$(readlink -m "${CURDIR}/${SRC}")
+TEST=$(readlink -m "${CURDIR}/${TEST}")
+OUT=$(readlink -m "${CURDIR}/${OUT}")
+SRC_DIR=${SRC/${CURDIR}\//}
+TEST=${TEST/${CURDIR}\//}
+OUT=${OUT/${CURDIR}\//}
+CURDIR=$(dirname "${0}")
+
 if [ ${VERBOSE} = true ]; then
 	VERBOSE=-v
 else
 	VERBOSE=
 fi
 
-IQUOTES='src src/aeten generated/src generated/src/aeten generated/test generated/test/aeten'
+IQUOTES="${SRC_DIR} ${SRC_DIR}/aeten ${GEN_DIR}/${SRC_DIR} ${GEN_DIR}/${SRC_DIR}/aeten ${GEN_DIR}/${TEST} ${GEN_DIR}/${TEST_DIR}/aeten"
 LDFLAGS+='-lpthread'
 
 ${VERSION} && { echo ${PROJECT_NAME}: version ${TAG}; exit 0; }
@@ -114,11 +129,11 @@ get-puml-include() {
 	local _puml
 	local _dir
 	for _inc in $(sed -n 's/^!include \([^!]\+\)/\1/p' "${_src}"); do
-		for _dir in $(dirname ${_src}) $(${replace_prefix} test/ src/ $(dirname ${_src})) ${IQUOTES}; do
+		for _dir in $(dirname ${_src}) $(${replace_prefix} ${TEST}/ ${SRC_DIR}/ $(dirname ${_src})) ${IQUOTES}; do
 			_puml="${_dir}/${_inc}"
-			[ -f "${_puml}" ] && { echo "${_puml}"; break; }
+			[ -f "${_puml}" ] && { echo "${_puml}"; get-puml-include "${_puml}"; break; }
 			_puml=${_puml/.c/.puml}
-			[ -f "${_puml}" ] && { echo "${_puml}"; break; }
+			[ -f "${_puml}" ] && { echo "${_puml}"; get-puml-include "${_puml}"; break; }
 		done
 	done
 }
@@ -126,7 +141,7 @@ get-puml-include() {
 get-headers() {
 	local source_file="$1"; shift
 	local source_dir=$(dirname "${source_file}")
-	local iquotes=$(${add_prefix} -iquote\  $(echo ${@}) generated/${source_dir/test\//src\/} generated/${source_dir})
+	local iquotes=$(${add_prefix} -iquote\  $(echo ${@}) ${GEN_DIR}/${source_dir/test\//src\/} ${GEN_DIR}/${source_dir})
 	inform "Resolving headers needed by ${source_file}" >&2
 	gcc -MM ${iquotes} "${source_file}" | sed '1 s,.\+: '"${source_file//./\\.}"',,; s/\\$//'
 }
@@ -137,7 +152,6 @@ build-target() {
 	local in_suffix=$1; shift
 	local out_prefix=$1; shift
 	local out_suffix=$1; shift
-	local ext
 	local output
 	inform "Building target for ${command} command from ${in_suffix}" >&2
 	for input in $@; do
@@ -148,43 +162,45 @@ build-target() {
 
 COMMANDS=$(. ${AETEN_CLI} && __aeten_cli_api ${AETEN_CLI} | grep -v '^import$')
 LINKS=$(${add_prefix} ${INSTALL_BIN_DIR}/ ${COMMANDS})
-SRC=$(find src/ test/ -type f -name \*.c)
-PUML=$(find src/ test/ -type f -name \*.puml)
+SRC=$(find ${SRC_DIR}/ ${TEST}/ -type f -name \*.c)
+PUML=$(find ${SRC_DIR}/ ${TEST}/ -type f -name \*.puml)
 OBJ=$(       ${replace_suffix} .c .o   $(${add_prefix} \\\\\${output}/    ${SRC}))
 HEADERS=$(   ${replace_suffix} .c .h   $(${add_prefix} \\\\\${generated}/ ${SRC}))
 XMI_FILES=$( ${replace_suffix} .c .xmi $(${add_prefix} \\\\\${output}/    ${SRC}) $(${add_prefix} \\\\\${output}/ $(${replace_suffix} .puml .xmi ${PUML})))
-PUML_PATH="-Dplantuml.include.path=src:src/aeten:generated/src:generated/src/aeten"
-PUML_FLAGS=$(${add_suffix} "=${GENERIC_REPLACEMENT}" $(${add_prefix} -D {A..Z}))
+PUML_PATH="-Dplantuml.include.path=${SRC_DIR}:${SRC_DIR}/aeten:${GEN_DIR}/${SRC_DIR}:${GEN_DIR}/${SRC_DIR}/aeten"
+PUML_FLAGS=$(${add_suffix} "='${GENERIC_REPLACEMENT}'" $(${add_prefix} -D {A..Z}))
 
 BUILD_TARGETS=$( (
-	build-target xmi2c       src/ xmi  '\\\${generated}/' '{h,c}' ${XMI_FILES};
+	build-target xmi2c       ${SRC_DIR}/ xmi  '\\\${generated}/' '{h,c}' ${XMI_FILES};
 
 	for _src in ${SRC} ${PUML}; do
 		inform "Building target for puml2xmi command from ${_src}" >&2
 		${target} --command puml2xmi --depends ${_src} $(${add_prefix} '--depends \\\${output}/' $(${replace_suffix} .puml .xmi $(${replace_suffix} .c .xmi $(get-puml-include ${_src})))) '\\\${output}/'$(dirname ${_src})/$(basename $(basename ${_src} .c) .puml).xmi
 	done
 
-	for _src in $(${replace_suffix} .puml .c ${PUML}); do
+	for _src in $(find ${SRC_DIR} ${TEST} -name \*.c); do
+		_deps=$(${add_prefix} '--depends \\\${generated}/' $(dirname ${_src})/$(basename --suffix=.c ${_src}).h $(${replace_suffix} .c .h $(get-puml-include ${_src})))
+		inform "Building target objdep from ${_src}" >&2
+		${target} --command objdep --depends ${_src} ${_deps} '\\\${output}/'$(${replace_suffix} .c .o ${_src}).d
 		inform "Building target cc from ${_src}" >&2
-		${target} --command cc --depends \\\${generated}/${_src} '\\\${output}/'$(dirname ${_src})/$(basename --suffix=.c ${_src}).o
+		_out='\\\${output}/'$(${replace_suffix} .c '.o' ${_src})
+		${target} --command cc --depends ${_src} --depends '| '${_out}.d ${_out}
 	done
 
-	for _src in $(find src test -name \*.c); do
-		inform "Building target cc from ${_src}" >&2
-		${target} --command cc --depends ${_src} $(${add_prefix} '--depends \\\${generated}/' $(dirname ${_src})/$(basename --suffix=.c ${_src}).h $(${replace_suffix} .c .h $(get-puml-include ${_src}))) '\\\${output}/'$(dirname ${_src})/$(basename --suffix=.c ${_src}).o
-	done
-
-	for _src in $(find test -name \*.c); do
+	for _src in $(find ${TEST} -name \*.c); do
 		executable=$(basename ${_src//_/-} .c);
 		depedencies="$(${replace_suffix} .c .o ${_src}) "
+		inform "Building target bindep from ${_src}" >&2
+		${target} --command bindep --depends '\\\${output}/'$(${replace_suffix} .c .o ${_src}).d --depends ${_src} '\\\${output}/test/'${executable}.d
 		inform "Building target ld from ${_src}" >&2
-		${target} --command ld $(${add_prefix} '--depends \\\${output}/' $(${replace_suffix} .c .o ${_src} $(get-puml-include ${_src}))) '\\\${output}/test/'${executable}
+		_out='\\\${output}/test/'${executable}
+		${target} --command ld --depends '\\\${output}/'$(${replace_suffix} .c .o ${_src}) --depends '| '${_out}.d ${_out}
 		inform "Building target run from ${_src}" >&2
-		${target} --command run --depends "\\\${output}/test/${executable}" run-${executable};
+		${target} --command run --depends '\\\${output}/test/'${executable} run-${executable};
 	done
 ) |sed '$ ! s/$/\\/')
 
-RUN_TESTS="$(for src in $(find test -name \*.c); do
+RUN_TESTS="$(for src in $(find ${TEST} -name \*.c); do
 	echo run-$(basename ${src//_/-} .c);
 done|paste -sd' ' -)"
 
@@ -205,9 +221,10 @@ OBJ             = $(echo ${OBJ})
 BUILD_TARGETS   = ${BUILD_TARGETS}
 RUN_TESTS       = ${RUN_TESTS}
 OUT             = ${OUT}
-GENERATED       = ${CURDIR}/generated
+GENERATED       = ${GEN_DIR}
 SRC             = $(echo ${SRC}|tr ' ' ':')
 IPATH           = ${IQUOTES// /:}
+API             = $(${add_prefix} '\\\${generated}/' $(${replace_suffix} .c .h ${SRC}))
 EOF
 
 if [ ${BUILDER} = make ]; then

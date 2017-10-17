@@ -13,11 +13,11 @@ namespace aeten {
 @enduml
 */
 
-void _Integer(Integer* self, int value) {
+void Integer_new(Integer* self, int value) {
 	self->_value = value;
 }
 
-void _from_number(Integer* self, aeten_Number *value) {
+void Integer_new_from_number(Integer* self, aeten_Number *value) {
 	self->_value = value->signedValue(value);
 }
 

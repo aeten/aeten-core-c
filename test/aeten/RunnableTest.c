@@ -19,7 +19,7 @@ namespace aeten {
 @enduml
 */
 
-inline void _RunnableTest(RunnableTest* self) {
+inline void RunnableTest_new(RunnableTest* self) {
 	self->result = (10 * ++_count);
 }
 
@@ -29,7 +29,7 @@ static inline void run(RunnableTest* self) {
 
 int main(int argc, char** argv) {
 	// Heap allocation
-	RunnableTest *test = (RunnableTest*)RunnableTest_new();
+	RunnableTest *test = (RunnableTest*)new_RunnableTest();
 	if (test->result != 10) {
 		return 1;
 	}
@@ -37,10 +37,9 @@ int main(int argc, char** argv) {
 	if (test->result != 11) {
 		return 2;
 	}
-	test->finalize(test);
-	free(test);
+	test->delete(test);
 	// Stack allocation
-	Runnable stack_test = RunnableTest_newInStack();
+	Runnable stack_test = new_RunnableTest_fromStack();
 	test = (RunnableTest*) &stack_test;
 	if (test->_self->result != 20) {
 		return 4;

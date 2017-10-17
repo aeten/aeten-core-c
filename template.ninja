@@ -19,11 +19,35 @@ rule clean
 
 rule cc
 	description = Compile ${in}
+	depfile = ${out}.d
 	command = ${CC} -o ${out} -c ${cflags} -iquote ${generated}/$$(dirname ${first}) -iquote ${generated}/$$(dirname ${first}|sed 's,^test/,src/,') -D$$(dirname ${first}|awk -F/ 'BEGIN{OFS="_"}{$$1="";print toupper($$0 "_'$$(basename ${first} .c)'_private")}') ${first}
 
 rule ld
 	description = Link objects into ${out}
-	command = ${LD} -o ${out} ${ldflags} ${in}
+	depfile = ${out}.d
+	command = ${LD} -o ${out} ${ldflags} $$(sed '1 d; s/\\$$//' ${out}.d) -D$$(dirname ${first}|awk -F/ 'BEGIN{OFS="_"}{$$1="";print toupper($$0 "_'$$(basename ${first} .d)'_private")}')
+
+rule bindep
+	description = Genarate depfile for ${in}
+#	depfile = ${out}
+	command = sed '1 s,.\+:\s*\\\?,,; s,\(^\|\s\)${generated}/,,g; s/\.[ch]\(\s*\\\?\)/.o\x0/g; s,\(^\| \|\x0\([^\n]\)\),\n${output}/\2,g; s/\x0//; \,${out}\s*,d;' ${first}|sort -u|sed '1 s,^,${out}:,; 1 s,\.d:,:,; 1 ! s/^/ /; $$ ! s/$$/ \\/' > ${out}
+
+rule objdep
+	description = Genarate depfile for ${in}
+#	depfile = ${out}
+	command = ${CC} -MM ${cflags} -iquote ${generated}/$$(dirname ${first}) -iquote ${generated}/$$(dirname ${first}|sed 's,^test/,src/,') -D$$(dirname ${first}|awk -F/ 'BEGIN{OFS="_"}{$$1="";print toupper($$0 "_'$$(basename ${first} .c)'_private")}') ${first} > ${out}
+
+#rule cc
+#	description = Compile ${in}
+#	depfile = ${out}.d
+#	command = ${CC} -MM ${cflags} -iquote ${generated}/$$(dirname ${first}) -iquote ${generated}/$$(dirname ${first}|sed 's,^test/,src/,') -D$$(dirname ${first}|awk -F/ 'BEGIN{OFS="_"}{$$1="";print toupper($$0 "_'$$(basename ${first} .c)'_private")}') ${first} > ${out}.d && ${CC} -o ${out} -c ${cflags} -iquote ${generated}/$$(dirname ${first}) -iquote ${generated}/$$(dirname ${first}|sed 's,^test/,src/,') -D$$(dirname ${first}|awk -F/ 'BEGIN{OFS="_"}{$$1="";print toupper($$0 "_'$$(basename ${first} .c)'_private")}') ${first}
+#
+#rule ld
+#	description = Link objects into ${out}
+#	depfile = ${out}.d
+#	command = sed '1 s,.\+:\s*\\\?,,; s,\(^\|\s\)${generated}/,,g; s/\.[ch]\(\s*\\\?\)/.o\x0/g; s,\(^\| \|\x0\([^\n]\)\),\n${output}/\2,g; s/\x0//; \,${out}\s*,d;' ${first}|sort -u|sed '1 s,^,${out}:,; 1 ! s/^/ /; $$ ! s/$$/ \\/' > ${out}.d && ${LD} -o ${out} ${ldflags} $$(sed '1 d; s/\\$$//' ${out}.d) -D$$(dirname ${first}|awk -F/ 'BEGIN{OFS="_"}{$$1="";print toupper($$0 "_'$$(basename ${first} .d)'_private")}')
+
+
 
 rule run
 	description = Run '${in}'
@@ -39,25 +63,19 @@ rule puml2cclass
 
 rule puml2xmi
 	description = Convert UML class diagram '${in}' into XMI
-	command = ${JAVA} -Djava.awt.headless=true ${pumlpath}:${generated}/$$(dirname ${first}):${generated}/$$(dirname ${first}|sed 's,^test/,src/,') -jar ${puml} -o $$(realpath --relative-to=$$(dirname ${first}) $$(dirname ${out})) -failfast2 -txmi:star ${pumlflags} ${in} || { rm -f ${out}; false; }
+	command = ${JAVA} -Djava.awt.headless=true ${pumlpath}:${generated}/$$(dirname ${first}):${generated}/$$(dirname ${first}|sed 's,^test/,src/,') -jar ${puml} -o $$(realpath --relative-to=$$(dirname ${first}) $$(dirname ${out})) -failfast2 -txmi:star ${pumlflags} ${first} || { rm -f ${out}; false; }
 
 rule xmi2c
 	description = Generate C file '${out}' from XMI '${in}'
 	command = ${XMI2C} --mode simple --in ${in} $$(echo ${out}|sed 's/\(^\)\|\( \)/ --out /g')
 
-rule qtcreator
-	description = QtCreaton project file update (${out})
-	command = echo '${content}'|awk 'BEGIN{RS=":"}{print}' > ${out}
 
+build always: phony
 build clean: clean ${output}
 build test: phony || @@RUN_TESTS@@
-build ${project}.files: qtcreator
-	content = ${project}.creator:${project}.files:${project}.includes:${src}
-build ${project}.includes: qtcreator
-	content = ${ipath}
-build qtcreator: phony || ${project}.creator ${project}.files ${project}.includes
-
+build api: phony || @@API@@
 default test
+
 
 @@BUILD_TARGETS@@
 

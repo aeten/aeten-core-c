@@ -10,7 +10,7 @@
 #include "Integer.h"
 #include "Number.h"
 #include "Object.h"
-#include "aeten/test/Testable.h"
+#include "test/Testable.h"
 
 /*!
 @startuml
@@ -24,13 +24,13 @@ namespace aeten.collection {
 		{static} + ListTest(List* list) <<constructor>>
 
 		{static} - counter: unsigned
-		- list: List*
+		- list: List *
 	}
 } 
 @enduml
 */
 
-#define LIST(list, args) {#list, list##_new(args)}
+#define LIST(list, args) {#list, new_##list(args)}
 struct test_list {
 	char *name;
 	List *list;
@@ -43,7 +43,7 @@ int main(int argc, char** argv) {
 	struct test_list list[] = {LIST(ArrayList, 0)};
 
 	for (int i=0; i<(sizeof(list)/sizeof(struct test_list)); ++i) {
-		Testable* test = ListTest_new(list[i].list);
+		Testable* test = new_ListTest(list[i].list);
 		result = test->test(test);
 		if (!result) {
 			printf("[ FAIL ]", argv[0], list[i].name);
@@ -57,7 +57,7 @@ int main(int argc, char** argv) {
 	return _counter;
 }
 
-void _ListTest(ListTest* self, List* list) {
+void ListTest_new(ListTest* self, List* list) {
 	self->_list = list;
 }
 
@@ -67,10 +67,10 @@ static void sig_handler(int signo) {
 	longjmp(context, 1);
 }
 
-static void catch_segv(int catch) {
+static void catch_segv(bool iscatch) {
 	struct sigaction sa;
 
-	if (catch) {
+	if (iscatch) {
 		memset(&sa, 0, sizeof(struct sigaction));
 		sa.sa_handler = sig_handler;
 		sa.sa_flags = SA_RESTART;
@@ -89,7 +89,7 @@ static bool test(ListTest* self) {
 	Number *number;
 	int i;
 	for (i=0; i<10; ++i) {
-		number = Integer_new(i);
+		number = new_Integer(i);
 		list->add(list, (Object*)number);
 		number = (Number*)list->get(list, i);
 		if (number->signedValue(number) != i) {
@@ -101,8 +101,7 @@ static bool test(ListTest* self) {
 	catch_segv(1);
 	if (setjmp(context)) {
 		catch_segv(0);
-		int v = number->signedValue(number);
-		return (v != i);
+		return (i != number->signedValue(number));
 	}
 	number = (Number*)list->get(list, i);
 	catch_segv(0);
