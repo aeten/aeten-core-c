@@ -141,7 +141,7 @@ get-puml-include() {
 get-headers() {
 	local source_file="$1"; shift
 	local source_dir=$(dirname "${source_file}")
-	local iquotes=$(${add_prefix} -iquote\  $(echo ${@}) ${GEN_DIR}/${source_dir/test\//src\/} ${GEN_DIR}/${source_dir})
+	local iquotes=$(${add_prefix} -iquote\  $(echo ${@}) ${GEN_DIR}/${source_dir/${TEST}\//${SRC_DIR}\/} ${GEN_DIR}/${source_dir})
 	inform "Resolving headers needed by ${source_file}" >&2
 	gcc -MM ${iquotes} "${source_file}" | sed '1 s,.\+: '"${source_file//./\\.}"',,; s/\\$//'
 }
@@ -189,12 +189,12 @@ BUILD_TARGETS=$( (
 		executable=$(basename ${_src//_/-} .c);
 		depedencies="$(${replace_suffix} .c .o ${_src}) "
 		inform "Building target bindep from ${_src}" >&2
-		${target} --command bindep --depends '\\\${output}/'$(${replace_suffix} .c .o ${_src}) --depends ${_src} '\\\${output}/test/'${executable}.d
+		${target} --command bindep --depends '\\\${output}/'$(${replace_suffix} .c .o ${_src}) --depends ${_src} '\\\${output}/'"${TEST}/${executable}.d"
 		inform "Building target ld from ${_src}" >&2
-		_out='\\\${output}/test/'${executable}
+		_out='\\\${output}/'"${TEST}/${executable}"
 		${target} --command ld --depends '\\\${output}/'$(${replace_suffix} .c .o ${_src}) --depends '| '${_out}.d ${_out}
 		inform "Building target run from ${_src}" >&2
-		${target} --command run --depends '\\\${output}/test/'${executable} run-${executable};
+		${target} --command run --depends '\\\${output}/'"${TEST}/${executable}" run-${executable}
 	done
 ) |sed '$ ! s/$/\\/')
 
