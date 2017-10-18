@@ -6,9 +6,9 @@
 !include Collection.c
 namespace aeten.collection {
 	interface List<T> extends Collection {
-		T get(unsigned position)
-		+ set(unsigned position, T element)
-		+ add(T element)
+		+ T* get(unsigned position)
+		+ set(unsigned position, T* element)
+		+ add(T* element)
 	}
 	note right of List::get
 		Return the element at the mentionned position.

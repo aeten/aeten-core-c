@@ -33,17 +33,17 @@ $(${AETEN_CLI_DIR}/aeten-ads init - -- "${@}" << EOF
 #VERSION: ${TAG}
 #SHORT_DESCRIPTION: Æten core library building configuration script.
 #DESCRIPTION: Configures and generates building file (Ninja or GNU Make).
+conf|C <config-file>: The configuration bash file path to source, _config.sh_ by default.
 prefix <prefix-path>: The prefix path for installation, _/usr/local_ by default.
 src <directory>: The sources directory
 test <directory>: The sources directory for tests
 out <directory>: The output build directory, _${CURDIR}/build_ by default.
-conf <config-file>: The configuration bash file path to source, _config.sh_ by default.
 plantuml <jar-file>: The PlantUML jar file path.
 object-model|M <model>: The object model generation mode, _simple_ support only one parent per interface whereas _complete_ support several and provides castable ojects (ie. cast a list to iterable).
-generic-replacement|R <replacement>: The parameterized type replacement, _void\*_ by default (may be _aeten\\_Object\*_ for example).
-gcc <gcc-exec-file>: The GCC executable file path.
+generic-replacement|R <replacement>: The parameterized type replacement, _void_ by default (may be _aeten\\_Object_ for example).
+cc <cc-exec-file>: The C compiler executable file path, _gcc_ by default.
+ld <cc-exec-file>: The linker executable file path, _gcc_ by default.
 warning <list>: The warning flags to activate, _all_ and _error_ by default.
-qtcreator: Create QtCreator project target
 verbose: Verbose build output.
 version|V: Shows ${PROJECT_NAME} version.
 EOF
@@ -55,11 +55,12 @@ EOF
 : ${SRC:=src}
 : ${TEST:=test}
 : ${OUT:=build}
-: ${GENERIC_REPLACEMENT:=void*}
+: ${GENERIC_REPLACEMENT:=void}
 : ${VERSION:=false}
 : ${VERBOSE:=false}
-: ${QTCREATOR:=false}
 : ${GEN_DIR:=${OUT}/generated}
+: ${CC:=gcc}
+: ${LD:=gcc}
 SRC=$(readlink -m "${CURDIR}/${SRC}")
 TEST=$(readlink -m "${CURDIR}/${TEST}")
 OUT=$(readlink -m "${CURDIR}/${OUT}")
@@ -212,8 +213,8 @@ PUML_FLAGS      = ${PUML_FLAGS}
 JAVA            = java
 PLANTUML        = ${PLANTUML}
 XMI2C           = $(dirname "$0")/xmi2c
-CC              = gcc
-LD              = gcc
+CC              = ${CC}
+LD              = ${LD}
 INSTALL_LIB_DIR = ${LIB_DIR}
 OBJ             = $(echo ${OBJ})
 BUILD_TARGETS   = ${BUILD_TARGETS}
@@ -221,6 +222,8 @@ RUN_TESTS       = ${RUN_TESTS}
 OUT             = ${OUT}
 GENERATED       = ${GEN_DIR}
 SRC             = $(echo ${SRC}|tr ' ' ':')
+SRC_DIR         = ${SRC_DIR}
+TEST_DIR         = ${TEST}
 IPATH           = ${IQUOTES// /:}
 API             = $(${add_prefix} '\\\${generated}/' $(${replace_suffix} .c .h ${SRC}))
 EOF

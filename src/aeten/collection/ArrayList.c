@@ -13,7 +13,7 @@ namespace aeten.collection {
 	class ArrayList<T> implements List {
 		- capacity : unsigned
 		- size : unsigned
-		- elements : T[]
+		- elements : T**
 
 		{static} + ArrayList(unsigned initial_capacity) <<constructor>>
 		# finalize() <<override>>
