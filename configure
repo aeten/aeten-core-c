@@ -74,7 +74,7 @@ else
 	VERBOSE=
 fi
 
-IQUOTES="${SRC_DIR} ${SRC_DIR}/aeten ${GEN_DIR}/${SRC_DIR} ${GEN_DIR}/${SRC_DIR}/aeten ${GEN_DIR}/${TEST} ${GEN_DIR}/${TEST_DIR}/aeten"
+IQUOTES="${SRC_DIR} ${SRC_DIR}/aeten ${GEN_DIR}/${SRC_DIR} ${GEN_DIR}/${SRC_DIR}/aeten ${GEN_DIR}/${TEST} ${GEN_DIR}/${TEST}/aeten"
 LDFLAGS+='-lpthread'
 
 ${VERSION} && { echo ${PROJECT_NAME}: version ${TAG}; exit 0; }
@@ -180,18 +180,16 @@ BUILD_TARGETS=$( (
 
 	for _src in $(find ${SRC_DIR} ${TEST} -name \*.c); do
 		_deps=$(${add_prefix} '--depends \\\${generated}/' $(dirname ${_src})/$(basename --suffix=.c ${_src}).h $(${replace_suffix} .c .h $(get-puml-include ${_src})))
-		inform "Building target objdep from ${_src}" >&2
-		${target} --command objdep --depends ${_src} ${_deps} '\\\${output}/'$(${replace_suffix} .c .o ${_src}).d
 		inform "Building target cc from ${_src}" >&2
 		_out='\\\${output}/'$(${replace_suffix} .c '.o' ${_src})
-		${target} --command cc --depends ${_src} --depends '| '${_out}.d ${_out}
+		${target} --command cc --depends ${_src} ${_deps} ${_out}
 	done
 
 	for _src in $(find ${TEST} -name \*.c); do
 		executable=$(basename ${_src//_/-} .c);
 		depedencies="$(${replace_suffix} .c .o ${_src}) "
 		inform "Building target bindep from ${_src}" >&2
-		${target} --command bindep --depends '\\\${output}/'$(${replace_suffix} .c .o ${_src}).d --depends ${_src} '\\\${output}/test/'${executable}.d
+		${target} --command bindep --depends '\\\${output}/'$(${replace_suffix} .c .o ${_src}) --depends ${_src} '\\\${output}/test/'${executable}.d
 		inform "Building target ld from ${_src}" >&2
 		_out='\\\${output}/test/'${executable}
 		${target} --command ld --depends '\\\${output}/'$(${replace_suffix} .c .o ${_src}) --depends '| '${_out}.d ${_out}
