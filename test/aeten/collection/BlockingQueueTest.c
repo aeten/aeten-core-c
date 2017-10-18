@@ -11,12 +11,11 @@
 
 /*
 @startuml
-!include Integer.c
-!include Number.c
 !include Object.c
-!include test/Testable.c
-!include collection/BlockingQueue.c
+!include Integer.c
+!include concurrent/Condition.c
 !include collection/ArrayBlockingQueue.c
+!include test/Testable.c
 namespace aeten.collection {
 	class BlockingQueueTest implements aeten.test.Testable {
 		+ {static} BlockingQueueTest() <<constructor>>
@@ -27,19 +26,19 @@ namespace aeten.collection {
 
 #define queue_check_offer(success, value) { \
 	Number *_value = new_Integer(value); \
-	if (_value && (queue->offer(queue, _value) != success)) { \
+	if (queue->offer(queue, _value) != success) { \
 		printf("%3d: [FAILED] Try to offer %d: success != " #success " (length=%u, valu=%u)\n", __LINE__, value, queue->size(queue), _value); \
 		\
-		if (_value) _value->delete(_value); \
+		_value->delete(_value); \
 		queue->finalize(queue); \
 		return false; \
 	} \
-	printf("%3d: [SUCCESS] Try to offer %d: success == " #success " (length=%u)\n", __LINE__, _value? _value->signedValue(_value): -1, queue->size(queue)); \
+	printf("%3d: [SUCCESS] Try to offer %d: success == " #success " (length=%u)\n", __LINE__, _value->signedValue(_value), queue->size(queue)); \
 }
 
 #define queue_check_poll(success, value) { \
 	Number *_value = (Number*)queue->poll(queue); \
-	if ((queue->poll(queue) != NULL) != success) { \
+	if ((_value != NULL) != success) { \
 		printf("%3d: [FAILED] Try to poll %d: success != " #success " (length=%u)\n", __LINE__, value, queue->size(queue)); \
 		if (_value) _value->delete(_value); \
 		queue->finalize(queue); \

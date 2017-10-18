@@ -410,6 +410,7 @@ helper_method_visitor() {
 			cat - <<EOF
 static inline ${_type} ${_name}(struct _${_args/${c_class}\* self/${C_CLASS}* self});
 ${_type} ${C_CLASS}_${_function}(struct _${_args/${c_class}\* self/${C_CLASS}* self}) {
+	check(self != NULL, NullPointerException, "self");
 	return ${_function}((struct _${C_CLASS}*)$(echo "${_args/self/self->_self}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
 }
 
@@ -420,12 +421,14 @@ EOF
 inline static void ${CLASS_NAME}_new${_name}(${_args/${c_class}\* self/${C_CLASS}* self});
 ${C_PARENT}* ${_function}(${_args_without_self}) {
 	${C_CLASS}* self = malloc(sizeof(${C_CLASS}));
+	check(self != NULL, HeapAllocationException, "self = malloc(%u)", sizeof(${C_CLASS}));
 	_${C_CLASS}_init(self);
 	${CLASS_NAME}_new${_name}($(echo "${_args}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
 	return (${C_PARENT}*)self;
 }
 inline ${C_PARENT} ${_function/${CLASS_NAME}/${CLASS_NAME}_fromStack}(${_args_without_self}) {
 	${C_CLASS}* self = alloca(sizeof(${C_CLASS}));
+	check(self != NULL, StackAllocationException, "self = alloca(%u)", sizeof(${C_CLASS}));
 	_${C_CLASS}_init(self);
 	${CLASS_NAME}_new${_name}($(echo "${_args}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
 	return *((${C_PARENT}*)self);
@@ -569,6 +572,8 @@ header_class_visitor() {
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
+
+#include "aeten/lang.h"
 
 EOF
 	for cls in ${CLASSES}; do
