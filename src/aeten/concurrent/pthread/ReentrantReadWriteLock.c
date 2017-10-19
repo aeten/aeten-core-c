@@ -27,7 +27,7 @@ namespace aeten.concurrent.pthread {
 @enduml
 */
 
-void _ReentrantReadWriteLock(ReentrantReadWriteLock* self) {
+void ReentrantReadWriteLock_new(ReentrantReadWriteLock* self) {
 	pthread_rwlock_t pthread_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 	self->_rw_lock = pthread_rwlock;
 	self->_read_lock = new_ReentrantReadLock(&self->_rw_lock);
@@ -36,7 +36,7 @@ void _ReentrantReadWriteLock(ReentrantReadWriteLock* self) {
 
 void finalize(ReentrantReadWriteLock* self) {
 	self->_read_lock->delete(self->_read_lock);
-	self->_read_lock->delete(self->_read_lock);
+	self->_write_lock->delete(self->_write_lock);
 	pthread_rwlock_destroy(&self->_rw_lock);
 }
 

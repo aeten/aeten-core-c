@@ -1,6 +1,6 @@
-#include "ReentrantReadLock.h"
-
 #include <pthread.h>
+
+#include "ReentrantReadLock.h"
 
 #define import
 #include "aeten/concurrent/Condition.h"
@@ -12,14 +12,14 @@
 namespace aeten.concurrent.pthread {
 	class ReentrantReadLock implements aeten.concurrent.Lock {
 		+ {static} ReentrantReadLock(pthread_rwlock_t* rw_lock) <<constructor>>
-		- rw_lock: pthread_rwlock_t
+		- rw_lock: pthread_rwlock_t*
 	}
 }
 @enduml
 */
 
-void new_ReentrantReadLock(ReentrantReadLock* self, pthread_rwlock_t* rw_lock) {
-	self->_rw_lock = pthread_rwlock;
+void ReentrantReadLock_new(ReentrantReadLock* self, pthread_rwlock_t *rw_lock) {
+	self->_rw_lock = rw_lock;
 }
 
 void lock(ReentrantReadLock* self) {
@@ -27,14 +27,15 @@ void lock(ReentrantReadLock* self) {
 }
 
 bool tryLock(ReentrantReadLock* self) {
-	pthread_mutex_tryrdlock(&self->_rw_lock) == 0;
+	check(pthread_rwlock_tryrdlock(self->_rw_lock) == 0, RuntimeError, "pthread_rwlock_tryrdlock");
 }
 
-Lock* unlock(ReentrantReadLock* self) {
+void unlock(ReentrantReadLock* self) {
 	check(pthread_rwlock_unlock(self->_rw_lock) == 0, RuntimeError, "pthread_rwlock_unlock");
 }
 
-Condition newCondition(ReentrantReadLock* self) {
+Condition* newCondition(ReentrantReadLock* self) {
 	check(0, UnsupportedOperationException, "ReentrantReadLock.newCondition()");
+	return NULL;
 }
 
