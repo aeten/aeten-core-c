@@ -1,0 +1,14 @@
+build clean: clean ${output}
+build lib: phony | ${output}/${project}-${version}.so ${output}/${project}-${version}.a
+build exe: phony | ${output}/${project}-${version}
+build library: phony | lib
+build executable: phony | exe
+
+build ${output}/${project}-${version}.so.d: libdep
+    libname = ${project}-${version}
+build ${output}/${project}-${version}.a.d: libdep
+    libname = ${project}-${version}
+build ${output}/${project}-${version}.so: ld | ${output}/${project}-${version}.so.d
+    ldflags = ${ldflags} -shared
+build ${output}/${project}-${version}.a: ar | ${output}/${project}-${version}.a.d
+

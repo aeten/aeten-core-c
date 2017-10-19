@@ -1,0 +1,66 @@
+rule clean
+    description = Clean
+    command = rm -rf ${in}
+
+rule cc
+    description = Compile ${in}
+    depfile = ${out}.d
+    command = ${cc} -o ${out} -c ${cflags} -iquote ${generated}/$$(dirname ${in}) -iquote ${generated}/$$(dirname ${in}|sed 's,^${testdir}/,${srcdir}/,') -D$$(dirname ${in}|awk -F/ 'BEGIN{OFS="_"}{$$1="";print toupper($$0 "_'$$(basename ${out} .o)'_private")}') ${in}
+
+rule ld
+    description = Link objects into ${out}
+    depfile = ${out}.d
+    command = ${ld} -o ${out} ${ldflags} $$(sed '1 d; s/\\$$//' ${out}.d)
+
+rule ar
+    description = Link objects into ${out}
+    depfile = ${out}.d
+    command = ${ar} rcs $$(out='${out}'; echo $${out%%.a}.o) $$(sed '1 d; s/\\$$//' ${out}.d)
+
+rule objdep
+    description =  Genarate depfile for ${in}
+    depfile = ${out}
+    command = { $
+        _srcdir=$$(dirname ${in}); $
+        echo; $
+        get_includes() { $
+            local _inc; $
+            local _dir; $
+            local _file; $
+            for _inc in $$(sed -n 's/^!include \([^!]\+\)/\1/p' "$${1}"); do $
+                for _dir in $$(echo ${srcdir} ${testdir} ${srcdir}/aeten ${testdir}/aeten $$(dirname $${1}) ${srcdir}/$${_srcdir##${testdir}/}|sort -u); do $
+                    _file="$${_dir}/$${_inc}"; $
+                    [ -f $${_file} ] || continue; $
+                    echo ${generated}/$${_file%%.c}.h; $
+                    get_includes "$${_file}"; $
+                done; $
+            done; $
+        }; $
+        get_includes ${in}; $
+    } | sort -u | sed '1 s,$$,${out}: \\\n ${in} \\\n ${generated}/'$$(dirname ${in})/$$(basename ${in} .c)'.h,; 1 ! s/^/ /; $$ ! s/$$/ \\/' > ${out}
+
+rule bindep
+    description = Genarate depfile for ${in}
+    depfile = ${out}
+    command = deps=$$(sed '1 s,.\+:\s*\\\?,,; s,\(^\|\s\)${generated}/,,g; s/\.[hc]\(\s*\\\?\)/.o\x0/g; s/[^ ]\+\/lang\.o\x0//g; s/[^ ]\+\.[^o]\x0//g; s,\(^\| \|\x0\([^\n]\)\),\n${output}/\2,g; s/\x0//; \,${out}\s*,d; /[^o]$$/d;' ${first}.d|sort -u) && ninja $$deps && echo "$$deps"|sed '1 s,^,${out}:,; 1 s,\.d:,:,; 1 ! s/^/ /; $$ ! s/$$/ \\/;' > ${out}
+
+rule libdep
+    description = Genarate depfile ${out}
+    depfile = ${output}/${libname}.d
+    command = for src in $$(find ${srcdir} -name \*.c); do echo " ${output}/$${src%%.c}.o"; done|sed '1 s,^,${output}/${libname}: \\\n,; $$ ! s/$$/ \\/' > ${output}/${libname}.d && sed '1 s,${output}/${libname}:,${output}/${libname}.so:,' ${output}/${libname}.d > ${output}/${libname}.so.d && sed '1 s,${output}/${libname}:,${output}/${libname}.a:,' ${output}/${libname}.d > ${output}/${libname}.a.d
+
+rule run
+    description = Run '${in}'
+    command = ./${in} ${args}
+
+rule puml2cclass
+    description = Include UML '${in}' in a c class file '${out}'
+    command = printf '#include "%s"\n\n/*!\n%s\n*/\n' "$$(basename ${in} .puml).h" "$$(cat "${in}")" > "${out}"
+
+rule puml2xmi
+    description = Convert UML class diagram '${in}' into XMI
+    command = ${java} -Djava.awt.headless=true ${pumlpath}:${generated}/$$(dirname ${first}):${generated}/$$(dirname ${first}|sed 's,^${testdir}/,${srcdir}/,') -jar ${puml} -o $$(realpath --relative-to=$$(dirname ${first}) $$(dirname ${out})) -failfast2 -txmi:star ${pumlflags} ${first} || { rm -f ${out}; false; }
+
+rule xmi2c
+    description = Generate C file '${out}' from XMI '${in}'
+    command = ${xmi2c} --mode simple --in ${in} $$(echo ${out}|sed 's/\(^\)\|\( \)/ --out /g')

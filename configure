@@ -1,15 +1,14 @@
 #!/bin/bash
 
-set -e
-
 CURDIR=$(readlink -f $(dirname "${0}"))
 AETEN_MAKE=${CURDIR}/cots/aeten-make
 AETEN_CLI_DIR=${CURDIR}/cots/aeten-cli
 AETEN_CLI=${AETEN_CLI_DIR}/aeten-cli.sh
 
 # If git repository
-DESCRIPTION=$(git describe --long --dirty=-* --all --always 2>/dev/null)
-if [ -n "${DESCRIPTION}" ]; then
+DESCRIPTION=$([ -e ${CURDIR}/.git ] && hash git 2>/dev/null && git describe --long --dirty=-* --all --always 2>/dev/null)
+IS_GIT_REPO=$([ -n "${DESCRIPTION=}" ] && echo true || echo false)
+if ${IS_GIT_REPO}; then
 	PROJECT_NAME=$(basename "$(realpath "${CURDIR}")")
 	TAG=$(git describe --tags 2>/dev/null; true)
 	DESCRIPTION=${DESCRIPTION/*\//}
@@ -34,23 +33,27 @@ $(${AETEN_CLI_DIR}/aeten-ads init - -- "${@}" << EOF
 #SHORT_DESCRIPTION: Æten core library building configuration script.
 #DESCRIPTION: Configures and generates building file (Ninja or GNU Make).
 conf|C <config-file>: The configuration bash file path to source, _config.sh_ by default.
+binary <type>: The binary type, _library_ by default or _executable_.
 prefix <prefix-path>: The prefix path for installation, _/usr/local_ by default.
 src <directory>: The sources directory
 test <directory>: The sources directory for tests
 out <directory>: The output build directory, _${CURDIR}/build_ by default.
-plantuml <jar-file>: The PlantUML jar file path.
-object-model|M <model>: The object model generation mode, _simple_ support only one parent per interface whereas _complete_ support several and provides castable ojects (ie. cast a list to iterable).
-generic-replacement|R <replacement>: The parameterized type replacement, _void_ by default (may be _aeten\\_Object_ for example).
+plantuml|P <jar-file>: The PlantUML jar file path.
+object-model|m <model>: The object model generation mode, _simple_ support only one parent per interface whereas _complete_ support several and provides castable ojects (ie. cast a list to iterable).
+generic-replacement|r <replacement>: The parameterized type replacement, _void_ by default (may be _aeten\\_Object_ for example).
 cc <cc-exec-file>: The C compiler executable file path, _gcc_ by default.
-ld <cc-exec-file>: The linker executable file path, _gcc_ by default.
+ld <ld-exec-file>: The linker executable file path, _gcc_ by default.
+ar <ar-exec-file>: The archive executable file path, _ar_ by default.
+ninja <file>: The Ninja build project file to include
 warning <list>: The warning flags to activate, _all_ and _error_ by default.
 verbose: Verbose build output.
 version|V: Shows ${PROJECT_NAME} version.
 EOF
 )
 
+: ${BINARY:=library}
 : ${PREFIX:=/usr/local}
-: ${WARNING:=error}
+: ${WARNING:=all error}
 : ${CONFIG:=${CURDIR}/config.sh}
 : ${SRC:=src}
 : ${TEST:=test}
@@ -61,6 +64,9 @@ EOF
 : ${GEN_DIR:=${OUT}/generated}
 : ${CC:=gcc}
 : ${LD:=gcc}
+: ${AR:=ar}
+: ${JAVA:=java}
+: ${NINJA:=${PROJECT_NAME}.ninja}
 SRC=$(readlink -m "${CURDIR}/${SRC}")
 TEST=$(readlink -m "${CURDIR}/${TEST}")
 OUT=$(readlink -m "${CURDIR}/${OUT}")
@@ -91,15 +97,14 @@ BUILDER=ninja
 : ${PREFIX:=$(query 'Enter the prefix installation path.')}
 : ${PLANTUML:=$(query 'Enter the plantuml jar path.')}
 
-TEMPLATE=template.ninja
 case "${BUILDER}" in
 	ninja)
-		template=${TEMPLATE}
+		project_ninja=${TEMPLATE}
 		build_script=build.ninja;;
 	make)
-		template=build.mk
+		project_ninja=build.mk
 		build_script=makefile
-		check -m 'Generates GNU Make template' "${AETEN_MAKE}/ninja2make ${CURDIR}/${TEMPLATE}|sed 's,@@check@@,./${AETEN_CLI} check ${VERBOSE},g' > ${CURDIR}/${template}";;
+		check -m 'Generates GNU Make project_ninja' "${AETEN_MAKE}/ninja2make ${CURDIR}/${TEMPLATE}|sed 's,@@check@@,./${AETEN_CLI} check ${VERBOSE},g' > ${CURDIR}/${project_ninja}";;
 	*) fatal 'Builder must be "ninja" or "make"';;
 esac
 
@@ -110,14 +115,14 @@ replace_prefix="${AETEN_MAKE}/generate-builder replace-prefix"
 target="${AETEN_MAKE}/generate-builder target --builder ${BUILDER}"
 
 # Submodules setup
-if [ -n "${DESCRIPTION}" ]; then
-	SUBMODULES=$(git submodule status|awk '{print $$2}')
+if ${IS_GIT_REPO}; then
+	SUBMODULES=$(git submodule status|awk '{print $2}')
 	SUBMODULES_SCRIPT=cots/aeten-git-tools/aeten-submodules.sh
-	git_submodule=". ${AETEN_CLI} && aeten_cli_import ${AETEN_CLI} all && . ./${SUBMODULES_SCRIPT} && git-submodule-"
+	git_submodule=". ${AETEN_CLI} && aeten_cli_import ${AETEN_CLI} all && . ./${SUBMODULES_SCRIPT} && git-submodule"
 
 	if [ -f "${AETEN_CLI}" ]; then
 		for module in ${SUBMODULES}; do
-			(${git_submodule}-check ${module}>/dev/null)
+			bash -c "${git_submodule}-check ${module}" > /dev/null
 		done
 	else
 		git submodule init ${AETEN_CLI_DIR}
@@ -129,12 +134,10 @@ get-puml-include() {
 	local _inc
 	local _puml
 	local _dir
-	for _inc in $(sed -n 's/^!include \([^!]\+\)/\1/p' "${_src}"); do
+	for _inc in $(sed -n 's/^!include \([^!]\+\)/\1/p' "${_src}"); do #; s/^#include\s\+["<]\(.\+\)[">]/\1/p' "${_src}"); do
 		for _dir in $(dirname ${_src}) $(${replace_prefix} ${TEST}/ ${SRC_DIR}/ $(dirname ${_src})) ${IQUOTES}; do
 			_puml="${_dir}/${_inc}"
-			[ -f "${_puml}" ] && { echo "${_puml}"; get-puml-include "${_puml}"; break; }
-			_puml=${_puml/.c/.puml}
-			[ -f "${_puml}" ] && { echo "${_puml}"; get-puml-include "${_puml}"; break; }
+			[ -f "${_puml}" ] && echo "$_puml" #{ echo ${_puml}; get-puml-include "${_puml}"; break; }
 		done
 	done
 }
@@ -156,80 +159,85 @@ build-target() {
 	local output
 	inform "Building target for ${command} command from ${in_suffix}" >&2
 	for input in $@; do
-		output=" ${out_prefix}$(dirname ${input}|sed 's,^\\\${output}/,,')/$(basename --suffix=.${in_suffix} ${input}).${out_suffix}"
-		${target} --command ${command} --depends ${input} ${output}
+		output=" ${out_prefix}$(dirname ${input}|sed 's,^\${output}/,,')/$(basename --suffix=.${in_suffix} ${input}).${out_suffix}"
+		${target} --command ${command} --depends ${input} "$(eval echo ${output})"
 	done
 }
 
 COMMANDS=$(. ${AETEN_CLI} && __aeten_cli_api ${AETEN_CLI} | grep -v '^import$')
 LINKS=$(${add_prefix} ${INSTALL_BIN_DIR}/ ${COMMANDS})
 SRC=$(find ${SRC_DIR}/ ${TEST}/ -type f -name \*.c)
-PUML=$(find ${SRC_DIR}/ ${TEST}/ -type f -name \*.puml)
-OBJ=$(       ${replace_suffix} .c .o   $(${add_prefix} \\\\\${output}/    ${SRC}))
-HEADERS=$(   ${replace_suffix} .c .h   $(${add_prefix} \\\\\${generated}/ ${SRC}))
-XMI_FILES=$( ${replace_suffix} .c .xmi $(${add_prefix} \\\\\${output}/    ${SRC}) $(${add_prefix} \\\\\${output}/ $(${replace_suffix} .puml .xmi ${PUML})))
+OBJ=$(       ${replace_suffix} .c .o   $(${add_prefix} \\\${output}/    ${SRC}))
+HEADERS=$(   ${replace_suffix} .c .h   $(${add_prefix} \\\${generated}/ ${SRC}))
+XMI_FILES=$( ${replace_suffix} .c .xmi $(${add_prefix} \\\${output}/    ${SRC}))
 PUML_PATH="-Dplantuml.include.path=${SRC_DIR}:${SRC_DIR}/aeten:${GEN_DIR}/${SRC_DIR}:${GEN_DIR}/${SRC_DIR}/aeten"
 PUML_FLAGS=$(${add_suffix} "='${GENERIC_REPLACEMENT}'" $(${add_prefix} -D {A..Z}))
 
-BUILD_TARGETS=$( (
-	build-target xmi2c       ${SRC_DIR}/ xmi  '\\\${generated}/' '{h,c}' ${XMI_FILES};
+BUILD_TARGETS=$(
+	build-target xmi2c       ${SRC_DIR}/ xmi  '\${generated}/' '{h,c}' ${XMI_FILES};
 
-	for _src in ${SRC} ${PUML}; do
+	for _src in $(find ${SRC} -name \*.c); do
 		inform "Building target for puml2xmi command from ${_src}" >&2
-		${target} --command puml2xmi --depends ${_src} $(${add_prefix} '--depends \\\${output}/' $(${replace_suffix} .puml .xmi $(${replace_suffix} .c .xmi $(get-puml-include ${_src})))) '\\\${output}/'$(dirname ${_src})/$(basename $(basename ${_src} .c) .puml).xmi
-	done
-
-	for _src in $(find ${SRC_DIR} ${TEST} -name \*.c); do
-		_deps=$(${add_prefix} '--depends \\\${generated}/' $(dirname ${_src})/$(basename --suffix=.c ${_src}).h $(${replace_suffix} .c .h $(get-puml-include ${_src})))
+		${target} --command puml2xmi --depends ${_src} '${output}/'$(dirname ${_src})/$(basename ${_src} .c).xmi
 		inform "Building target cc from ${_src}" >&2
-		_out='\\\${output}/'$(${replace_suffix} .c '.o' ${_src})
-		${target} --command cc --depends ${_src} ${_deps} ${_out}
+		_out='${output}/'$(${replace_suffix} .c .o ${_src})
+		${target} --command objdep --depends ${_src} ${_out}.d
+		${target} --command cc --depends ${_src} --depends "| ${_out}.d" ${_out}
 	done
 
 	for _src in $(find ${TEST} -name \*.c); do
 		executable=$(basename ${_src//_/-} .c);
 		depedencies="$(${replace_suffix} .c .o ${_src}) "
 		inform "Building target bindep from ${_src}" >&2
-		${target} --command bindep --depends '\\\${output}/'$(${replace_suffix} .c .o ${_src}) --depends ${_src} '\\\${output}/'"${TEST}/${executable}.d"
+		${target} --command bindep --depends '${output}/'$(${replace_suffix} .c .o ${_src}) --depends ${_src} '${output}/'"${TEST}/${executable}.d"
 		inform "Building target ld from ${_src}" >&2
-		_out='\\\${output}/'"${TEST}/${executable}"
-		${target} --command ld --depends '\\\${output}/'$(${replace_suffix} .c .o ${_src}) --depends '| '${_out}.d ${_out}
+		_out='${output}/'"${TEST}/${executable}"
+		${target} --command ld --depends '${output}/'$(${replace_suffix} .c .o ${_src}) --depends '| '${_out}.d "${_out}"
 		inform "Building target run from ${_src}" >&2
-		${target} --command run --depends '\\\${output}/'"${TEST}/${executable}" run-${executable}
+		${target} --command run --depends '${output}/'"${TEST}/${executable}" run-${executable}
 	done
-) |sed '$ ! s/$/\\/')
+)
 
-RUN_TESTS="$(for src in $(find ${TEST} -name \*.c); do
-	echo run-$(basename ${src//_/-} .c);
-done|paste -sd' ' -)"
+check -m "Generates ${build_script}" cat - <<EOF '>' ${CURDIR}/${build_script}
+project   = ${PWD##*/}
+version   = ${TAG}
+cflags    = ${CFLAGS} $(${add_prefix} -W ${WARNING}) $(${add_prefix} -iquote\  ${IQUOTES})
+ldflags   = ${LDFLAGS}
+cc        = ${CC}
+ld        = ${LD}
+ar        = ${AR}
+xmi2c     = $(dirname "$0")/xmi2c
+java      = ${JAVA}
+puml      = ${PLANTUML}
+pumlpath  = ${PUML_PATH}
+pumlflags = ${PUML_FLAGS}
+output    = ${OUT}
+generated = ${GEN_DIR}
+ipath     = ${IQUOTES}
+src       = $(echo ${SRC}|tr ' ' ':')
+srcdir    = ${SRC_DIR}
+testdir   = ${TEST}
 
-check -m "Generates ${build_script}" ${AETEN_MAKE}/generate-builder -t ${CURDIR}/${template} "${@}" '>' ${CURDIR}/${build_script} <<EOF
-PROJECT         = ${PWD##*/}
-BUILDER         = ${BUILDER}
-CFLAGS          = ${CFLAGS} $(${add_prefix} -W ${WARNING}) $(${add_prefix} -iquote\  ${IQUOTES})
-LDFLAGS         = ${LDFLAGS}
-PUML_PATH       = ${PUML_PATH}
-PUML_FLAGS      = ${PUML_FLAGS}
-JAVA            = java
-PLANTUML        = ${PLANTUML}
-XMI2C           = $(dirname "$0")/xmi2c
-CC              = ${CC}
-LD              = ${LD}
-INSTALL_LIB_DIR = ${LIB_DIR}
-OBJ             = $(echo ${OBJ})
-BUILD_TARGETS   = ${BUILD_TARGETS}
-RUN_TESTS       = ${RUN_TESTS}
-OUT             = ${OUT}
-GENERATED       = ${GEN_DIR}
-SRC             = $(echo ${SRC}|tr ' ' ':')
-SRC_DIR         = ${SRC_DIR}
-TEST_DIR         = ${TEST}
-IPATH           = ${IQUOTES// /:}
-API             = $(${add_prefix} '\\\${generated}/' $(${replace_suffix} .c .h ${SRC}))
+include default-rules.ninja
+include default-targets.ninja
+default ${BINARY}
+
+build deps: phony || $(echo \${output}/\${project}-\${version}{.d,.a.d,.so.d}) $(for src in $(find ${SRC} ${TEST} -name \*.c); do
+	echo -n " \${output}/${src%%.c}.o.d"
+done)
+
+
+build test: phony || $(for src in $(find ${TEST} -name \*.c); do
+   echo run-$(basename ${src//_/-} .c)
+done|paste -sd' ' -)
+$([ -f "${NINJA}" ] && echo include "${NINJA}")
+
+${BUILD_TARGETS}
+
 EOF
 
 if [ ${BUILDER} = make ]; then
-	rm ${template}
+	rm ${project_ninja}
 else
 	exit 0
 fi

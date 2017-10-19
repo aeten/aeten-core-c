@@ -10,3 +10,6 @@
 	branch = master
 	sparse-checkout = aeten-cli.sh\n \
 	                  aeten-ads
+[submodule "cots/aeten-git-tools"]
+	path = cots/aeten-git-tools
+	url = https://gitlab.com/aeten/aeten-git-tools.git
