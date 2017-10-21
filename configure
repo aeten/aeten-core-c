@@ -40,7 +40,6 @@ test <directory>: The sources directory for tests
 out <directory>: The output build directory, _${CURDIR}/build_ by default.
 plantuml|P <jar-file>: The PlantUML jar file path.
 object-model|m <model>: The object model generation mode, _simple_ support only one parent per interface whereas _complete_ support several and provides castable ojects (ie. cast a list to iterable).
-generic-replacement|r <replacement>: The parameterized type replacement, _void_ by default (may be _aeten\\_Object_ for example).
 cc <cc-exec-file>: The C compiler executable file path, _gcc_ by default.
 ld <ld-exec-file>: The linker executable file path, _gcc_ by default.
 ar <ar-exec-file>: The archive executable file path, _ar_ by default.
@@ -58,7 +57,6 @@ EOF
 : ${SRC:=src}
 : ${TEST:=test}
 : ${OUT:=build}
-: ${GENERIC_REPLACEMENT:=void}
 : ${VERSION:=false}
 : ${VERBOSE:=false}
 : ${GEN_DIR:=${OUT}/generated}
@@ -67,6 +65,7 @@ EOF
 : ${AR:=ar}
 : ${JAVA:=java}
 : ${NINJA:=${PROJECT_NAME}.ninja}
+: ${PLANTUML:=cots/plantuml/plantuml.jar}
 SRC=$(readlink -m "${CURDIR}/${SRC}")
 TEST=$(readlink -m "${CURDIR}/${TEST}")
 OUT=$(readlink -m "${CURDIR}/${OUT}")
@@ -95,7 +94,6 @@ $(${AETEN_CLI} import check inform fatal confirm query)
 
 BUILDER=ninja
 : ${PREFIX:=$(query 'Enter the prefix installation path.')}
-: ${PLANTUML:=$(query 'Enter the plantuml jar path.')}
 
 case "${BUILDER}" in
 	ninja)
@@ -171,7 +169,7 @@ OBJ=$(       ${replace_suffix} .c .o   $(${add_prefix} \\\${output}/    ${SRC}))
 HEADERS=$(   ${replace_suffix} .c .h   $(${add_prefix} \\\${generated}/ ${SRC}))
 XMI_FILES=$( ${replace_suffix} .c .xmi $(${add_prefix} \\\${output}/    ${SRC}))
 PUML_PATH="-Dplantuml.include.path=${SRC_DIR}:${SRC_DIR}/aeten:${GEN_DIR}/${SRC_DIR}:${GEN_DIR}/${SRC_DIR}/aeten"
-PUML_FLAGS=$(${add_suffix} "='${GENERIC_REPLACEMENT}'" $(${add_prefix} -D {A..Z}))
+PUML_FLAGS=
 
 BUILD_TARGETS=$(
 	build-target xmi2c       ${SRC_DIR}/ xmi  '\${generated}/' '{h,c}' ${XMI_FILES};

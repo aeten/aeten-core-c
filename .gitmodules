@@ -13,3 +13,7 @@
 [submodule "cots/aeten-git-tools"]
 	path = cots/aeten-git-tools
 	url = https://gitlab.com/aeten/aeten-git-tools.git
+[submodule "cots/plantuml"]
+	path = cots/plantuml
+	url = https://github.com/aeten/plantuml.git
+	branch = xmi-output-improvements
