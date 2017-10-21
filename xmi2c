@@ -97,6 +97,9 @@ PARENT_NAMESPACE=${PARENT/${PARENT_TYPE}:${PARENT_ID}:/}
 PARENT_NAMESPACE=${PARENT_NAMESPACE/:*/}
 PARENT_NAME=${PARENT//*:/}
 C_PARENT=${PARENT_NAMESPACE//./_}_${PARENT_NAME}
+if [ ${C_PARENT} = _ ]; then
+	C_PARENT=${C_CLASS}
+fi
 
 method_visitor_init='
 	local _class="${1}"; shift
@@ -119,10 +122,11 @@ method_visitor_init='
 	local _args_without_self
 	local _tmp_args
 	local _arg
+	local _parameterized_types=$(get_class_parameter_types ${CLASS_ID})
 
 	_type=${_type/\[\]/*}
 	_type=${_type/<*>/}
-	_type=$(full_qualified_type ${_type})
+	_type=$(full_qualified_type ${_type} ${_parameterized_types})
 	if [ "${_name}" = "${CLASS_NAME}" ] && [ "${_stereotype/*constructor*/constructor}" != constructor ]; then
 		_stereotype+=" constructor"
 	fi
@@ -161,6 +165,9 @@ method_visitor_init='
 		_parent_namespace=${_parent_namespace/:*/}
 		_parent_name=${_parent//*:/}
 		_c_parent=${_parent_namespace//./_}_${_parent_name}
+		if [ ${_c_parent} = _ ]; then
+		_c_parent=${c_class}
+		fi
 		_type="${_c_parent}"
 		if [ ${_name} = ${CLASS_NAME} ]; then
 			_function=new_${C_CLASS}
@@ -182,7 +189,7 @@ method_visitor_init='
 	for _arg in $(echo "${_tmp_args}"|awk "BEGIN{RS=\",\"}{match(\$0, /^\s*([^ ]+\s*\*?)\s*([^ ^\n]+)\s*\$/, arg);print arg[2] \":\" arg[1]}"); do
 		[ -z "${_args}" ] || { _args+=", "; }
 		_arg=${_arg// /}
-		_args+="$(full_qualified_type "${_arg/*:/}") ${_arg/:*/}"
+		_args+="$(full_qualified_type "${_arg/*:/}" ${_parameterized_types}) ${_arg/:*/}"
 	done
 	_args_without_self=${_args}
 	if [ -z "${_args/ /}" ]; then
@@ -210,6 +217,11 @@ methods_class_visitor_init='
 	fi
 '
 
+get_class_parameter_types() {
+	local _classid=${1}
+	xmlstarlet sel -B -t -m "//UML:Class[@xmi.id='${_classid}']//UML:Parameter" -v "concat(./@name, ':', ./UML:Parameter.type/UML:DataType/@name, ' ')" ${XMI}
+}
+
 attributes_class_visitor_init='
 	local attributes=$(xmlstarlet sel -B -t -m "//UML:Class[@xmi.id='"'"'${classid}'"'"']/UML:Classifier.feature/UML:Attribute" -v "concat(./@name, '"'"' «'"'"', ./@ownerScope, '"'"'» '"'"', '"'"'«'"'"', @visibility, '"'"'»'"'"')" -n "${XMI}"|sed "s/&lt;/</g;s/&gt;/>/g"; true)
 '
@@ -223,7 +235,7 @@ attributes_visitor_init='
 	local _stereotypes="${_attribute/${_name}:${_type}/}"
 	_name="${_name// /}"
 	_type="${_type// /}"
-	_type=$(full_qualified_type "${_type/\[\]/*}")
+	_type=$(full_qualified_type "${_type/\[\]/*}" $(get_class_parameter_types ${CLASS_ID}))
 	local _stereotypes="${_stereotypes//[«»]/ }"
 	local _public
 	local _static
@@ -246,7 +258,9 @@ attributes_visitor_init='
 '
 
 full_qualified_type() {
-	local _type=${1}
+	local _type=${1}; shift
+	local _parametrized_types=$@
+	local _parametrized_type
 	local _class_to_resolve
 	local _pointer
 	local _class
@@ -254,9 +268,18 @@ full_qualified_type() {
 	local _classid
 	local _namespace
 	local _classname
-	if [ -z ${_type} ]; then
+	if [ -z "${_type}" ]; then
 		return
 	fi
+	_class_to_resolve=$(echo "${_type}"|sed 's/[^a-ZA-Z0-9^_]*\([a-ZA-Z0-9_]\+\)[^a-ZA-Z0-9^_]*/\1/')
+	for _parametrized_type in $_parametrized_types; do
+#		echo ${_class_to_resolve} = ${_parametrized_type/:*/} >&2
+		if [ ${_class_to_resolve} = ${_parametrized_type/:*/} ]; then
+			_class_to_resolve=${_parametrized_type/*:/}
+			_class_to_resolve=${_class_to_resolve// /}
+		break
+		fi
+	done
 	for _class in ${CLASSES}; do
 		_classtype=${_class/:*/}
 		_classid=${_class/${_classtype}:/}
@@ -264,13 +287,12 @@ full_qualified_type() {
 		_namespace=${_class/${_classtype}:${_classid}:/}
 		_namespace=${_namespace/:*/}
 		_classname=${_class//*:/}
-		_class_to_resolve=$(echo "${_type}"|sed 's/[^a-ZA-Z0-9^_]*\([a-ZA-Z0-9_]\+\)[^a-ZA-Z0-9^_]*/\1/')
 		if [ ${_classname} = ${_class_to_resolve} ]; then
 			echo $(echo "${_type}"|sed 's/\([^a-ZA-Z0-9^_]*\)\([a-ZA-Z0-9_]\+\)\([^a-ZA-Z0-9^_]*\)/\1'${_namespace//./_}_${_classname}'\3/')
 			return 0
 		fi
 	done
-	echo "${_type}"
+	echo $(echo "${_type}"|sed 's/\([^a-ZA-Z0-9^_]*\)\([a-ZA-Z0-9_]\+\)\([^a-ZA-Z0-9^_]*\)/\1'${_class_to_resolve}'\3/')
 }
 
 
@@ -433,6 +455,20 @@ inline ${C_PARENT} ${_function/${CLASS_NAME}/${CLASS_NAME}_fromStack}(${_args_wi
 	${CLASS_NAME}_new${_name}($(echo "${_args}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
 	return *((${C_PARENT}*)self);
 }
+
+${C_PARENT}_Array* ${_function/new_/newArrayOf_}(${_args/${c_class}* self/size_t length}) {
+	${C_CLASS}_Array* array = malloc(sizeof(${C_PARENT}_Array) + (length * (sizeof(${C_CLASS}*)+sizeof(${C_CLASS}))));
+	check(array != NULL, HeapAllocationException, "array = malloc(%u+%u*%u)", sizeof(${C_CLASS}_Array), length, sizeof(${C_CLASS}));
+	array->length = length;
+	array->values = (${C_CLASS}*)(((char*)array + offsetof(${C_CLASS}_Array, values)) + (length * sizeof(${C_CLASS})));
+	${C_CLASS} *element = array->values;
+	for (int i=0; i<length; ++i) {
+		_${C_CLASS}_init(element);
+		${CLASS_NAME}_new${_name}($(echo "${_args/self/element}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
+	}
+	return (${C_PARENT}_Array*)array;
+}
+
 EOF
 	fi
 }
@@ -569,9 +605,10 @@ header_class_visitor() {
 #ifndef ${c_class^^}_H
 #define ${c_class^^}_H
 
-#include <stdlib.h>
-#include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
 
 #include "aeten/lang.h"
 
@@ -587,7 +624,7 @@ EOF
 	else
 		echo "struct _${c_class};"
 	fi
-	echo
+	echo -e "\ntypedef struct {\n\tsize_t length;\n\tstruct _${c_class} *values;\n} ${c_class}_Array;\n"
 	for cls in ${CLASS_HIERARCHY}; do
 		visit_class typedef ${cls}
 	done
