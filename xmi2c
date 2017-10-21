@@ -456,13 +456,13 @@ inline ${C_PARENT} ${_function/${CLASS_NAME}/${CLASS_NAME}_fromStack}(${_args_wi
 	return *((${C_PARENT}*)self);
 }
 
-${C_PARENT}_Array* ${_function/new_/newArrayOf_}(${_args/${c_class}* self/size_t length}) {
-	${C_CLASS}_Array* array = malloc(sizeof(${C_PARENT}_Array) + (length * (sizeof(${C_CLASS}*)+sizeof(${C_CLASS}))));
-	check(array != NULL, HeapAllocationException, "array = malloc(%u+%u*%u)", sizeof(${C_CLASS}_Array), length, sizeof(${C_CLASS}));
-	array->length = length;
-	array->values = (${C_CLASS}*)(((char*)array + offsetof(${C_CLASS}_Array, values)) + (length * sizeof(${C_CLASS})));
+${C_PARENT}_Array* ${_function/new_/newArrayOf_}(${_args/${c_class}* self/size_t _length}) {
+	${C_CLASS}_Array* array = malloc(sizeof(${C_PARENT}_Array) + (_length * (sizeof(${C_CLASS}*)+sizeof(${C_CLASS}))));
+	check(array != NULL, HeapAllocationException, "array = malloc(%u+%u*%u)", sizeof(${C_CLASS}_Array), _length, sizeof(${C_CLASS}));
+	array->length = _length;
+	array->values = (${C_CLASS}*)(((char*)array + offsetof(${C_CLASS}_Array, values)) + (_length * sizeof(${C_CLASS})));
 	${C_CLASS} *element = array->values;
-	for (int i=0; i<length; ++i) {
+	for (int i=0; i<_length; ++i) {
 		_${C_CLASS}_init(element);
 		${CLASS_NAME}_new${_name}($(echo "${_args/self/element}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
 	}
@@ -619,17 +619,12 @@ EOF
 		fi
 	done
 	echo
-	if [ ${classtype} = interface ]; then
-		echo "typedef struct _${c_class} ${c_class};"
-	else
-		echo "struct _${c_class};"
-	fi
+	echo "typedef struct _${c_class} ${c_class};"
 	echo -e "\ntypedef struct {\n\tsize_t length;\n\tstruct _${c_class} *values;\n} ${c_class}_Array;\n"
 	for cls in ${CLASS_HIERARCHY}; do
 		visit_class typedef ${cls}
 	done
 	echo
-	if [ ${classtype} = interface ]; then
 		echo "struct _${c_class} {"
 		echo -e "\t${c_class}* const _self;"
 		for cls in ${CLASS_HIERARCHY}; do
@@ -637,7 +632,6 @@ EOF
 			visit_class attributes_instance ${cls}
 		done
 		echo -e '};\n'
-	fi
 
 	for cls in ${CLASS_HIERARCHY}; do
 		visit_class method_declaration ${cls}
@@ -678,14 +672,6 @@ c_private_class_visitor() {
 #define     ${CLASS_NAME}               ${C_CLASS}
 #define new_${CLASS_NAME}           new_${C_CLASS}
 #define new_${CLASS_NAME}_fromStack new_${C_CLASS}_fromStack
-
-typedef struct _${c_class} {
-	struct _${c_class}* const _self;
-$(for cls in ${CLASS_HIERARCHY}; do
-	visit_class methods ${cls}
-	visit_class attributes_instance ${cls}
-done)
-} ${c_class};
 
 void _${C_CLASS}_init(${c_class}* self);
 
