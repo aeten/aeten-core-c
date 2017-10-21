@@ -460,11 +460,10 @@ ${C_PARENT}_Array* ${_function/new_/newArrayOf_}(${_args/${c_class}* self/size_t
 	${C_CLASS}_Array* array = malloc(sizeof(${C_PARENT}_Array) + (_length * (sizeof(${C_CLASS}*)+sizeof(${C_CLASS}))));
 	check(array != NULL, HeapAllocationException, "array = malloc(%u+%u*%u)", sizeof(${C_CLASS}_Array), _length, sizeof(${C_CLASS}));
 	array->length = _length;
-	array->values = (${C_CLASS}*)(((char*)array + offsetof(${C_CLASS}_Array, values)) + (_length * sizeof(${C_CLASS})));
-	${C_CLASS} *element = array->values;
-	for (int i=0; i<_length; ++i) {
-		_${C_CLASS}_init(element);
-		${CLASS_NAME}_new${_name}($(echo "${_args/self/element}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
+	array->size = sizeof(${C_CLASS});
+	for (size_t i=0; i<_length; ++i) {
+		_${C_CLASS}_init(&array->values[i]);
+		${CLASS_NAME}_new${_name}($(echo "${_args/self/&array->values[i]}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
 	}
 	return (${C_PARENT}_Array*)array;
 }
@@ -620,7 +619,7 @@ EOF
 	done
 	echo
 	echo "typedef struct _${c_class} ${c_class};"
-	echo -e "\ntypedef struct {\n\tsize_t length;\n\tstruct _${c_class} *values;\n} ${c_class}_Array;\n"
+	echo -e "\ntypedef struct {\n\tsize_t length;\n\tsize_t size;\n\t${c_class} *values;\n} ${c_class}_Array;\n"
 	for cls in ${CLASS_HIERARCHY}; do
 		visit_class typedef ${cls}
 	done

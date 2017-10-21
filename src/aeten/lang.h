@@ -3,6 +3,24 @@
 
 #include <stdio.h>
 
+
+//! @startuml Array
+//! class aeten.Array {
+//! @pause
+typedef struct {
+	//! @append length: size_t
+	size_t length;
+	//! @append size: size_t
+	size_t size;
+	//! @append values: void*
+	void *values;
+} aeten_Array;
+//! @unpause
+//! }
+//! @enduml
+
+
+
 /** Check expression or throws exception (TODO) */
 #define check(expression, exception, message_format, ...) { \
 		int _ret = 0; \
