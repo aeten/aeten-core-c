@@ -12,7 +12,6 @@
 @startuml
 !include Object.c
 !include Collection.c
-!include ArrayList.c
 !include List.c
 !include concurrent/Condition.c
 !include concurrent/Lock.c
@@ -20,7 +19,7 @@
 !include Queue.c
 !include BlockingQueue.c
 namespace aeten.collection {
-	class ArrayBlockingQueue implements BlockingQueue {
+	class ArrayBlockingQueue<T> implements BlockingQueue {
 		+ {static} ArrayBlockingQueue(unsigned capacity)
 		- lock: Lock*
 		- full: Condition*
@@ -29,21 +28,26 @@ namespace aeten.collection {
 		- not_empty: Condition*
 		- capacity: size_t
 		- size: size_t
-		- array: List*
-		- head: unsigned
-		- tail: unsigned
+		- array: T*[]
+		- head: int
+		- tail: int
 	}
 }
 @enduml
 */
 
 void ArrayBlockingQueue_new(ArrayBlockingQueue* self, unsigned capacity) {
+	self->_array = malloc(capacity * sizeof(void*));
+	check(self->_array, HeapAllocationException, "Array(capacity=%u * size=%u)", capacity, sizeof(void*));
 	self->_lock = new_ReentrantLock();
 	self->_full = self->_lock->newCondition(self->_lock);
 	self->_empty = self->_lock->newCondition(self->_lock);
 	self->_not_full = self->_lock->newCondition(self->_lock);
 	self->_not_empty = self->_lock->newCondition(self->_lock);
-	self->_array = new_ArrayList(capacity);
+	self->_capacity = capacity;
+	self->_size = 0;
+	self->_head = -1;
+	self->_tail = -1;
 }
 
 static void finalize(ArrayBlockingQueue* self) {
@@ -52,7 +56,7 @@ static void finalize(ArrayBlockingQueue* self) {
 	self->_empty->delete(self->_empty);
 	self->_not_full->delete(self->_not_full);
 	self->_not_empty->delete(self->_not_empty);
-	self->_array->delete(self->_array);
+	free(self->_array);
 }
 
 static unsigned size(ArrayBlockingQueue* self) {
@@ -78,7 +82,7 @@ static bool _queue_push(ArrayBlockingQueue* self, void *element, bool try_) {
 		}
 		self->_not_full->await(self->_not_full);
 	}
-	self->_array->set(self->_array, self->_head, element);
+	self->_array[self->_head] = element;
 
 	self->_size++;
 
@@ -102,7 +106,7 @@ static void *_queue_pop(ArrayBlockingQueue* self, bool try_) {
 		}
 		self->_not_empty->await(self->_not_empty);
 	}
-	element = self->_array->get(self->_array, self->_tail);
+	element = self->_array[self->_tail];
 
 	self->_size--;
 
@@ -123,7 +127,7 @@ static void *peek(ArrayBlockingQueue* self) {
 	void *element = NULL;
 	self->_lock->lock(self->_lock);
 	if (self->_size != 0) {
-		element = self->_array->get(self->_array, self->_tail);
+		element = self->_array[self->_tail];
 	}
 	self->_lock->unlock(self->_lock);
 	return element;

@@ -27,7 +27,7 @@ namespace aeten.collection {
 #define queue_check_offer(success, value) { \
 	Number *_value = new_Integer(value); \
 	if (queue->offer(queue, _value) != success) { \
-		printf("%3d: [FAILED] Try to offer %d: success != " #success " (length=%u, valu=%u)\n", __LINE__, value, queue->size(queue), _value); \
+		printf("%3d: [FAILED] Try to offer %d: success != " #success " (length=%u, valu=%u)\n", __LINE__, value, queue->size(queue), _value->unsignedValue(_value)); \
 		\
 		_value->delete(_value); \
 		queue->finalize(queue); \
@@ -83,8 +83,8 @@ bool test(BlockingQueueTest *self) {
 }
 
 int main(int argc, char** argv) {
-	Testable test = new_BlockingQueueTest_fromStack();
-	bool success = test.test(&test);
-	test.finalize(&test);
+	Testable* test = new_BlockingQueueTest();
+	bool success = test->test(test);
+	test->delete(test);
 	return (success? 0: -1);
 }

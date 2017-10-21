@@ -1,3 +1,6 @@
+#ifndef AETEN_LANG_H
+#define AETEN_LANG_H
+
 #include <stdio.h>
 
 /** Check expression or throws exception (TODO) */
@@ -11,3 +14,4 @@
 		_ret; \
 	}
 
+#endif // AETEN_LANG_H
