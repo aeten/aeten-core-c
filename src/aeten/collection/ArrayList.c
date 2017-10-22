@@ -11,11 +11,11 @@
 !include List.c
 namespace aeten.collection {
 	class ArrayList<T> implements List {
-		- capacity : unsigned
-		- size : unsigned
+		- capacity : size_t
+		- size : size_t
 		- elements : T**
 
-		{static} + ArrayList(unsigned initial_capacity) <<constructor>>
+		{static} + ArrayList(size_t initial_capacity) <<constructor>>
 		# finalize() <<override>>
 	}
 	note right of ArrayList::ArrayList
@@ -25,7 +25,7 @@ namespace aeten.collection {
 @enduml
 */
 
-void ArrayList_new(ArrayList *self, unsigned initial_capacity) {
+void ArrayList_new(ArrayList *self, size_t initial_capacity) {
 	if (initial_capacity>0) {
 		self->_elements = malloc(initial_capacity * sizeof(self->_elements));
 		check(self->_elements != NULL, NoSuchMemoryError, "initial_capacity=%u", initial_capacity);
@@ -43,7 +43,7 @@ void finalize(ArrayList *self) {
 	}
 }
 
-void set(ArrayList *self, unsigned int position, void *element) {
+void set(ArrayList *self, size_t position, void *element) {
 	check(position < self->_size, IndexOutOfBoundException, "position=%u; array.length=%u", position, self->_size);
 	self->_elements[position] = element;
 }
@@ -58,12 +58,12 @@ void add(ArrayList *self, void *element) {
 	self->_elements[self->_size++] = element;
 }
 
-void *get(ArrayList *self, unsigned int position) {
+void *get(ArrayList *self, size_t position) {
 	check(position < self->_size, IndexOutOfBoundException, "position=%u; array.length=%u", position, self->_size);
 	return self->_elements[position];
 }
 
-unsigned size(ArrayList *self) {
+size_t size(ArrayList *self) {
 	return self->_size;
 }
 

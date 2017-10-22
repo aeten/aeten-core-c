@@ -26,26 +26,26 @@ namespace aeten.collection {
 
 #define queue_check_offer(success, value) { \
 	Number *_value = new_Integer(value); \
-	if (queue->offer(queue, _value) != success) { \
-		printf("%3d: [FAILED] Try to offer %d: success != " #success " (length=%u, valu=%u)\n", __LINE__, value, queue->size(queue), _value->unsignedValue(_value)); \
+	if (BlockingQueue_offer(queue, _value) != success) { \
+		printf("[FAILED] %3d: Try to offer %d: success != " #success " (length=%u, valu=%u)\n", __LINE__, value, BlockingQueue_size(queue), Number_unsignedValue(_value)); \
 		\
-		_value->delete(_value); \
-		queue->finalize(queue); \
+		Number_delete(_value); \
+		BlockingQueue_finalize(queue); \
 		return false; \
 	} \
-	printf("%3d: [SUCCESS] Try to offer %d: success == " #success " (length=%u)\n", __LINE__, _value->signedValue(_value), queue->size(queue)); \
+	printf("[SUCCESS] %3d: Try to offer %d: success == " #success " (length=%u)\n", __LINE__, Number_signedValue(_value), BlockingQueue_size(queue)); \
 }
 
 #define queue_check_poll(success, value) { \
-	Number *_value = (Number*)queue->poll(queue); \
+	Number *_value = (Number*)BlockingQueue_poll(queue); \
 	if ((_value != NULL) != success) { \
-		printf("%3d: [FAILED] Try to poll %d: success != " #success " (length=%u)\n", __LINE__, value, queue->size(queue)); \
-		if (_value) _value->delete(_value); \
-		queue->finalize(queue); \
+		printf("[FAILED] %3d: Try to poll %d: success != " #success " (length=%u)\n", __LINE__, value, BlockingQueue_size(queue)); \
+		Number_delete(_value); \
+		BlockingQueue_finalize(queue); \
 		return false; \
 	} \
-	printf("%3d: [SUCCESS] Try to poll %d: success == " #success " (length=%u)\n", __LINE__, _value? _value->signedValue(_value): -1, queue->size(queue)); \
-	if (_value) _value->delete(_value); \
+	printf("[SUCCESS] %3d: Try to poll %d: success == " #success " (length=%u)\n", __LINE__, _value? Number_signedValue(_value): -1, BlockingQueue_size(queue)); \
+	if (_value) Number_delete(_value); \
 }
 
 
@@ -78,13 +78,13 @@ bool test(BlockingQueueTest *self) {
 	for(i=0; i<length; ++i) {
 		queue_check_offer(true, i);
 	}
-	queue->delete(queue);
+	BlockingQueue_delete(queue);
 	return true;
 }
 
 int main(int argc, char** argv) {
 	Testable* test = new_BlockingQueueTest();
-	bool success = test->test(test);
-	test->delete(test);
+	bool success = Testable_test(test);
+	Testable_test(test);
 	return (success? 0: -1);
 }

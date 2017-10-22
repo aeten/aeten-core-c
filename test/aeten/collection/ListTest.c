@@ -44,15 +44,15 @@ int main(int argc, char** argv) {
 
 	for (int i=0; i<(sizeof(list)/sizeof(struct test_list)); ++i) {
 		Testable* test = new_ListTest(list[i].list);
-		result = test->test(test);
+		result = Testable_test(test);
 		if (!result) {
-			printf("[ FAIL ]", argv[0], list[i].name);
+			printf("[ FAIL ]");
 			++_counter;
 		} else {
-			printf("[SUCCES]", argv[0], list[i].name);
+			printf("[SUCCES]");
 		}
 		printf(" Test %s of %s\n", argv[0], list[i].name);
-		list[i].list->finalize(list[i].list);
+		List_finalize(list[i].list);
 	}
 	return _counter;
 }
@@ -90,10 +90,10 @@ static bool test(ListTest* self) {
 	int i;
 	for (i=0; i<10; ++i) {
 		number = new_Integer(i);
-		list->add(list, (Object*)number);
-		number = (Number*)list->get(list, i);
-		if (number->signedValue(number) != i) {
-			fprintf(stderr, "list->get(list, %d) != %d\n", i, i);
+		List_add(list, (Object*)number);
+		number = (Number*)List_get(list, i);
+		if (Number_signedValue(number) != i) {
+			fprintf(stderr, "[ FAIL ] List_get(list, %d) != %d\n", i, i);
 			return false;
 		}
 	}
@@ -101,9 +101,9 @@ static bool test(ListTest* self) {
 	catch_segv(1);
 	if (setjmp(context)) {
 		catch_segv(0);
-		return (i != number->signedValue(number));
+		return (i != Number_signedValue(number));
 	}
-	number = (Number*)list->get(list, i);
+	number = (Number*)List_get(list, i);
 	catch_segv(0);
 	return false;
 }

@@ -177,12 +177,10 @@ method_visitor_init='
 			_function=new_${C_CLASS}${_name}
 		fi
 	else
-		if ${_static} && ( ! ${_override} ) || [ ${CLASS_TYPE} = interface ]; then
-			_function=${C_CLASS}_${_name}
-		else
-			_function=${_name}
+		if ( ! ( ${_static} && ( ! ${_override} ) || [ ${CLASS_TYPE} = interface ] ) ); then
 			_static_prefix="static "
 		fi
+		_function=${_name}
 	fi
 	_tmp_args="${_args}"
 	_args=
@@ -273,7 +271,6 @@ full_qualified_type() {
 	fi
 	_class_to_resolve=$(echo "${_type}"|sed 's/[^a-ZA-Z0-9^_]*\([a-ZA-Z0-9_]\+\)[^a-ZA-Z0-9^_]*/\1/')
 	for _parametrized_type in $_parametrized_types; do
-#		echo ${_class_to_resolve} = ${_parametrized_type/:*/} >&2
 		if [ ${_class_to_resolve} = ${_parametrized_type/:*/} ]; then
 			_class_to_resolve=${_parametrized_type/*:/}
 			_class_to_resolve=${_class_to_resolve// /}
@@ -332,7 +329,7 @@ typedef_method_visitor() {
 	eval "${method_visitor_init}"
 	[ "${_stereotype}" = "constructor" ] && return
 	( ! ${_static} ) && {
-			echo "typedef ${_type} (*${C_CLASS}_${_name}_t)($(echo "${_args}"|sed "s/^${c_class}\\* _\?self/struct _${C_CLASS}* self/"));"
+			echo "typedef ${_type} (*${C_CLASS}_${_name}_t)($(echo "${_args}"|sed "s/^${c_class}\\* _\?self/${C_CLASS}* self/"));"
 	}
 }
 
@@ -377,15 +374,15 @@ declaration_method_visitor() {
 	local _cls
 	local _args
 	${_override} && return 0
-	if ${_static}  || { ${_default} && [ ${CLASS_TYPE} = interface ]; } || { ( ! ${_default} ) && [ ${CLASS_TYPE} = class ]; }; then
-		if ${_static} || [ ${CLASS_TYPE} = interface ] || [ ${out} = c_source ]; then
-			if ${_constructor}; then
-				echo "${_type}  ${_function/${CLASS_NAME}/${CLASS_NAME}_fromStack}(${_args_without_self});"
-				echo "${_type} *${_function}(${_args_without_self});"
-			else
-				echo "${_static_prefix}${_type} ${_function}($(echo "${_args}"|sed "s/^${c_class}\\* _self/${C_CLASS}* self/"));"
-			fi
-		fi
+	if ${_constructor}; then
+		cat - <<EOF
+${_type}  ${_function/${CLASS_NAME}/${CLASS_NAME}_fromStack}(${_args_without_self});
+${_type} *${_function}(${_args_without_self});
+EOF
+	else
+		cat - <<EOF
+${_type} ${C_CLASS}_${_function}(${_args/${c_class}\* self/${C_CLASS}* self});
+EOF
 	fi
 }
 
@@ -423,17 +420,34 @@ EOF
 	fi
 }
 
+import_method_visitor() {
+	eval "${method_visitor_init}"
+	local _cls
+	if ${_constructor}; then
+		cat - <<EOF
+#define ${_function/_${NAMESPACE//./_}/}           ${_function}
+#define ${_function/_${NAMESPACE//./_}/}_fromStack ${_function}_fromStack
+EOF
+	else
+		cat - <<EOF
+#define     ${CLASS_NAME}_${_function} ${C_CLASS}_${_function}
+EOF
+	fi
+}
+
 helper_method_visitor() {
 	eval "${method_visitor_init}"
 	local _cls
 
 	if  ( ! ${_constructor} ); then
-		if  ${override} || ( ! ${_static} ) && ( ! ${_default} ); then
+		if ( [ ${CLASS_TYPE} = class ] && ( [ ${classtype} = interface ] && ( ! ${_default} ) ) || ${_override} ) || ( [ ${c_class} = ${C_CLASS} ] && ${_default} ); then
+			echo "static ${_type} ${_name}(${_args/${c_class}\* self/${C_CLASS}* self});"
+		fi
+		if ( ! ${_override} ); then
 			cat - <<EOF
-static inline ${_type} ${_name}(struct _${_args/${c_class}\* self/${C_CLASS}* self});
-${_type} ${C_CLASS}_${_function}(struct _${_args/${c_class}\* self/${C_CLASS}* self}) {
+${_type} ${C_CLASS}_${_function}(${_args/${c_class}\* self/${C_CLASS}* self}) {
 	check(self != NULL, NullPointerException, "self");
-	return ${_function}((struct _${C_CLASS}*)$(echo "${_args/self/self->_self}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
+	return self->_self->${_function}($(echo "${_args/self/self->_self}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
 }
 
 EOF
@@ -474,12 +488,8 @@ EOF
 
 constructor_definition_method_visitor() {
 	eval "${method_visitor_init}"
-	if ${_override} || ( ! ${_static} ) && ( ! ${_constructor} ); then
-		if ${_default}; then
-			echo -e "\tself->${_name} = (${C_CLASS}_${_name}_t)${c_class}_${_name};"
-		else
-			echo -e "\tself->${_name} = ${C_CLASS}_${_name};"
-		fi
+	if ( ! ${_constructor} ) && ( ( ${_default} && [ ${c_class} = ${C_CLASS} ] ) || ( ( ! ${_default} ) && [ ${CLASS_TYPE} = class ] ) ); then
+		echo -e "\tself->${_name} = ${_name};"
 	fi
 }
 
@@ -523,6 +533,20 @@ helper_methods_class_visitor() {
 		IFS=$'\n'
 		for _method in ${methods}; do
 			visit_method helper "${c_class}" "${_method}"
+		done
+		unset IFS
+	fi
+}
+
+import_methods_class_visitor() {
+	eval "${class_visitor_init}"
+	eval "${methods_class_visitor_init}"
+	local _method
+
+	if [ -n "${methods}" ]; then
+		IFS=$'\n'
+		for _method in ${methods}; do
+			visit_method import "${c_class}" "${_method}"
 		done
 		unset IFS
 	fi
@@ -589,6 +613,9 @@ method_definition_class_visitor() {
 constructor_definition_class_visitor() {
 	eval "${class_visitor_init}"
 	eval "${methods_class_visitor_init}"
+	if [ ${c_class} != ${C_CLASS} ] && [ ${CLASS_TYPE} = class ]; then
+		echo -e "\t_${c_class}_init((${c_class}*)self);"
+	fi
 	IFS=$'\n'
 	for method in ${methods}; do
 		visit_method constructor_definition "${c_class}" "${method}"
@@ -617,9 +644,18 @@ EOF
 			visit_class include ${cls}
 		fi
 	done
-	echo
-	echo "typedef struct _${c_class} ${c_class};"
-	echo -e "\ntypedef struct {\n\tsize_t length;\n\tsize_t size;\n\t${c_class} *values;\n} ${c_class}_Array;\n"
+	cat - <<EOF
+
+typedef struct _${c_class} ${c_class};
+typedef struct {
+	size_t length;
+	size_t size;
+	${c_class} *values;
+} ${c_class}_Array;
+
+void _${C_CLASS}_init(${c_class}* self);
+
+EOF
 	for cls in ${CLASS_HIERARCHY}; do
 		visit_class typedef ${cls}
 	done
@@ -636,26 +672,21 @@ EOF
 		visit_class method_declaration ${cls}
 	done
 
-	if [ ${classtype} = class ]; then
-		cat - <<EOF
+	cat - <<EOF
 
 #ifdef _${C_CLASS^^}_PRIVATE
 $(visit_class c_private ${CLASS})
-
 #endif // _${C_CLASS^^}_PRIVATE
-EOF
-	fi
-	cat - <<EOF
 
 #endif // ${c_class^^}_H
 
-#ifndef _${C_CLASS^^}_PRIVATE
-#	ifdef import
-#		define     ${CLASS_NAME}               ${C_CLASS}
-#		define new_${CLASS_NAME}           new_${C_CLASS}
-#		define new_${CLASS_NAME}_fromStack new_${C_CLASS}_fromStack
-#	endif
-#endif // _${C_CLASS^^}_PRIVATE
+#if defined(import) || defined(_${C_CLASS^^}_PRIVATE)
+#define ${CLASS_NAME} ${C_CLASS}
+#define ${CLASS_NAME}_Array ${C_CLASS}_Array
+$(for _cls in ${CLASS_HIERARCHY}; do
+	visit_class import_methods ${_cls}
+done)
+#endif
 EOF
 }
 
@@ -668,24 +699,26 @@ c_private_class_visitor() {
 #include <assert.h>
 #include <string.h>
 
-#define     ${CLASS_NAME}               ${C_CLASS}
-#define new_${CLASS_NAME}           new_${C_CLASS}
-#define new_${CLASS_NAME}_fromStack new_${C_CLASS}_fromStack
-
-void _${C_CLASS}_init(${c_class}* self);
-
 $(for _cls in ${CLASS_HIERARCHY}; do
 	visit_class attributes_static ${_cls}
 	visit_class helper_methods ${_cls}
 done)
 
 void _${C_CLASS}_init(${c_class}* self) {
+EOF
+	if [ ${classtype} = class ]; then
+		cat - <<EOF
+	// ${C_CLASS} '${classtype}'
 	assert(self != NULL);
 	memcpy(self, &self, sizeof(${C_CLASS}*));
+EOF
+	fi
+	cat - <<EOF
 $(for _cls in ${CLASS_HIERARCHY}; do
 	visit_class constructor_definition ${_cls}
 done)
 }
+
 EOF
 
 }

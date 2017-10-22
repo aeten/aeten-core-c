@@ -5,7 +5,7 @@
 !include Object.c
 namespace aeten.collection {
 	interface Collection<T> {
-		+ unsigned size()
+		+ size_t size()
 	}
 	note right of Collection::size
 		Return the size of the collection.

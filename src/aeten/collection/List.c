@@ -6,8 +6,8 @@
 !include Collection.c
 namespace aeten.collection {
 	interface List<T> extends Collection {
-		+ T* get(unsigned position)
-		+ set(unsigned position, T* element)
+		+ T* get(size_t position)
+		+ set(size_t position, T* element)
 		+ add(T* element)
 	}
 	note right of List::get

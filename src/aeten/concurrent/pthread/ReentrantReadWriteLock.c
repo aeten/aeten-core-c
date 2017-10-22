@@ -35,8 +35,8 @@ void ReentrantReadWriteLock_new(ReentrantReadWriteLock* self) {
 }
 
 void finalize(ReentrantReadWriteLock* self) {
-	self->_read_lock->delete(self->_read_lock);
-	self->_write_lock->delete(self->_write_lock);
+	Lock_delete(self->_read_lock);
+	Lock_delete(self->_write_lock);
 	pthread_rwlock_destroy(&self->_rw_lock);
 }
 

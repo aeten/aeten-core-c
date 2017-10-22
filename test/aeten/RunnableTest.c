@@ -23,7 +23,7 @@ inline void RunnableTest_new(RunnableTest* self) {
 	self->result = (10 * ++_count);
 }
 
-static inline void run(RunnableTest* self) {
+void run(RunnableTest* self) {
 	self->result++;
 }
 
@@ -33,22 +33,22 @@ int main(int argc, char** argv) {
 	if (test->result != 10) {
 		return 1;
 	}
-	test->run(test);
+	RunnableTest_run(test);
 	if (test->result != 11) {
 		return 2;
 	}
-	test->delete(test);
+	RunnableTest_delete(test);
 	// Stack allocation
 	Runnable stack_test = new_RunnableTest_fromStack();
 	test = (RunnableTest*) &stack_test;
 	if (test->_self->result != 20) {
 		return 4;
 	}
-	stack_test.run(&stack_test);
+	Runnable_run(&stack_test);
 	if (test->_self->result != 21) {
 		return 8;
 	}
-	stack_test.finalize(&stack_test);
+	Runnable_finalize(&stack_test);
 	return 0;
 }
 

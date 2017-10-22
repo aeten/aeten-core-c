@@ -1,5 +1,8 @@
 #include "Integer.h"
 
+#define import
+#include "Number.h"
+
 /*
 @startuml
 !include Number.c
@@ -18,7 +21,7 @@ void Integer_new(Integer* self, int value) {
 }
 
 void Integer_new_from_number(Integer* self, aeten_Number *value) {
-	self->_value = value->signedValue(value);
+	self->_value = Number_signedValue(value);
 }
 
 long signedLongValue(Integer* self) {
