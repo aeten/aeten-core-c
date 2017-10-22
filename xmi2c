@@ -126,7 +126,7 @@ method_visitor_init='
 
 	_type=${_type/\[\]/*}
 	_type=${_type/<*>/}
-	_type=$(full_qualified_type ${_type} ${_parameterized_types})
+	_type=$(full_qualified_type ${_type} "${_parameterized_types}")
 	if [ "${_name}" = "${CLASS_NAME}" ] && [ "${_stereotype/*constructor*/constructor}" != constructor ]; then
 		_stereotype+=" constructor"
 	fi
@@ -257,7 +257,7 @@ attributes_visitor_init='
 
 full_qualified_type() {
 	local _type=${1}; shift
-	local _parametrized_types=$@
+	local _parametrized_types="$@"
 	local _parametrized_type
 	local _class_to_resolve
 	local _pointer
@@ -270,7 +270,7 @@ full_qualified_type() {
 		return
 	fi
 	_class_to_resolve=$(echo "${_type}"|sed 's/[^a-ZA-Z0-9^_]*\([a-ZA-Z0-9_]\+\)[^a-ZA-Z0-9^_]*/\1/')
-	for _parametrized_type in $_parametrized_types; do
+	for _parametrized_type in $(echo -e "${_parametrized_types// /\\n}"); do
 		if [ ${_class_to_resolve} = ${_parametrized_type/:*/} ]; then
 			_class_to_resolve=${_parametrized_type/*:/}
 			_class_to_resolve=${_class_to_resolve// /}
@@ -328,7 +328,7 @@ visit_method() {
 typedef_method_visitor() {
 	eval "${method_visitor_init}"
 	[ "${_stereotype}" = "constructor" ] && return
-	( ! ${_static} ) && {
+	( ! ${_override} ) && ( ! ${_static} ) && {
 			echo "typedef ${_type} (*${C_CLASS}_${_name}_t)($(echo "${_args}"|sed "s/^${c_class}\\* _\?self/${C_CLASS}* self/"));"
 	}
 }
@@ -440,7 +440,7 @@ helper_method_visitor() {
 	local _cls
 
 	if  ( ! ${_constructor} ); then
-		if ( [ ${CLASS_TYPE} = class ] && ( [ ${classtype} = interface ] && ( ! ${_default} ) ) || ${_override} ) || ( [ ${c_class} = ${C_CLASS} ] && ${_default} ); then
+		if ( [ ${CLASS_TYPE} = class ] && ( [ ${classtype} = interface ] && ( ! ${_default} ) ) || ( ${_override} && [ ${c_class} = ${C_CLASS} ] ) ) || ( [ ${c_class} = ${C_CLASS} ] && ${_default} ); then
 			echo "static ${_type} ${_name}(${_args/${c_class}\* self/${C_CLASS}* self});"
 		fi
 		if ( ! ${_override} ); then
@@ -486,10 +486,17 @@ EOF
 	fi
 }
 
+interface_init_method_visitor() {
+	eval "${method_visitor_init}"
+	if ( ! ${_constructor} ) && ${_default} && [ ${c_class} = ${C_CLASS} ] && [ ${CLASS_TYPE} = interface ]; then
+		echo -e "\tself->${_name} = ${_name};"
+	fi
+}
+
 constructor_definition_method_visitor() {
 	eval "${method_visitor_init}"
-	if ( ! ${_constructor} ) && ( ( ${_default} && [ ${c_class} = ${C_CLASS} ] ) || ( ( ! ${_default} ) && [ ${CLASS_TYPE} = class ] ) ); then
-		echo -e "\tself->${_name} = ${_name};"
+	if ( ! ${_constructor} ) ; then
+		echo ${_name}:${_default}
 	fi
 }
 
@@ -514,7 +521,7 @@ methods_class_visitor() {
 	local _method
 
 	if [ -n "${methods}" ]; then
-		echo -e "\t// Methods of ${c_class}"
+		echo "// Methods of ${c_class}"
 		IFS=$'\n'
 		for _method in ${methods}; do
 			visit_method callback "${c_class}" "${_method}"
@@ -599,7 +606,7 @@ method_declaration_class_visitor() {
 method_definition_class_visitor() {
 	eval "${class_visitor_init}"
 	eval "${methods_class_visitor_init}"
-	local _method
+	local method
 
 	if [ -n "${methods}" ]; then
 		IFS=$'\n'
@@ -610,12 +617,26 @@ method_definition_class_visitor() {
 	fi
 }
 
+constructor_init_class_visitor() {
+	eval "${class_visitor_init}"
+	eval "${methods_class_visitor_init}"
+
+	if [ ${c_class} != ${C_CLASS} ] && [ ${CLASS_TYPE} = class ]; then
+		echo -e "\t_${c_class}_init((${c_class}*)self);"
+	else
+		IFS=$'\n'
+		for method in ${methods}; do
+			visit_method interface_init "${c_class}" "${method}"
+		done
+		unset IFS
+	fi
+}
+
 constructor_definition_class_visitor() {
 	eval "${class_visitor_init}"
 	eval "${methods_class_visitor_init}"
-	if [ ${c_class} != ${C_CLASS} ] && [ ${CLASS_TYPE} = class ]; then
-		echo -e "\t_${c_class}_init((${c_class}*)self);"
-	fi
+	local method
+
 	IFS=$'\n'
 	for method in ${methods}; do
 		visit_method constructor_definition "${c_class}" "${method}"
@@ -694,6 +715,9 @@ c_private_class_visitor() {
 	eval "${class_visitor_init}"
 	eval "${methods_class_visitor_init}"
 	local _cls
+	local _methods
+	local _method_name
+	local _default_methods
 
 	cat - <<EOF
 #include <assert.h>
@@ -708,15 +732,30 @@ void _${C_CLASS}_init(${c_class}* self) {
 EOF
 	if [ ${classtype} = class ]; then
 		cat - <<EOF
-	// ${C_CLASS} '${classtype}'
 	assert(self != NULL);
 	memcpy(self, &self, sizeof(${C_CLASS}*));
 EOF
 	fi
+
+	for _cls in ${CLASS_HIERARCHY}; do
+		visit_class constructor_init ${_cls}
+	done
+
+	if [ ${classtype} = class ]; then
+		_methods=$(for _cls in ${CLASS_HIERARCHY}; do
+			visit_class constructor_definition ${_cls}
+		done)
+
+		for _method_name in ${_methods}; do
+			[ ${_method_name/:true/} != ${_method_name} ] && _default_methods+=$(echo "${_method_name/:true/}\n")
+		done
+		_methods=${_methods//:true/}
+		_methods=${_methods//:false/}
+		for _method_name in $(comm -13 --nocheck-order <(echo -e "${_default_methods}"|sort -u) <(echo -e "${_methods}"|sort -u)); do
+			echo -e "\tself->${_method_name} = ${_method_name};"
+		done
+	fi
 	cat - <<EOF
-$(for _cls in ${CLASS_HIERARCHY}; do
-	visit_class constructor_definition ${_cls}
-done)
 }
 
 EOF
