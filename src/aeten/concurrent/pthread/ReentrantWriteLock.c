@@ -27,7 +27,7 @@ void lock(ReentrantWriteLock* self) {
 }
 
 bool tryLock(ReentrantWriteLock* self) {
-	check(pthread_rwlock_trywrlock(self->_rw_lock) == 0, RuntimeError, "pthread_rwlock_trywrlock");
+	return (0 == pthread_rwlock_trywrlock(self->_rw_lock));
 }
 
 void unlock(ReentrantWriteLock* self) {
