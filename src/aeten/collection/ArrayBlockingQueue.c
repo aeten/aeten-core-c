@@ -5,14 +5,12 @@
 #include "concurrent/pthread/ReentrantLock.h"
 #include "concurrent/Condition.h"
 #include "Object.h"
-#include "List.h"
-#include "ArrayList.h"
+#include "Iterator.h"
 
 /*
 @startuml
 !include Object.c
 !include Collection.c
-!include List.c
 !include concurrent/Condition.c
 !include concurrent/Lock.c
 !include concurrent/pthread/ReentrantLock.c
@@ -21,6 +19,7 @@
 namespace aeten.collection {
 	class ArrayBlockingQueue<T> implements BlockingQueue {
 		+ {static} ArrayBlockingQueue(unsigned capacity)
+		# void finalize() <<override>>
 		- lock: Lock*
 		- not_full: Condition*
 		- not_empty: Condition*
@@ -89,6 +88,13 @@ static void put(ArrayBlockingQueue* self, void *element) {
 
 static void *take(ArrayBlockingQueue* self) {
 	return _queue_pop(self, false);
+}
+
+Iterator iterator(ArrayBlockingQueue *self) {
+	// TODO
+	check(0, NotImplementedOperationException, "ArrayBlockingQueue.iterator()");
+	Iterator iterator;
+	return iterator;
 }
 
 static bool _queue_push(ArrayBlockingQueue* self, void *element, bool try_) {

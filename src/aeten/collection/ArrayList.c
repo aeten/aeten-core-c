@@ -4,6 +4,7 @@
 
 #define import
 #include "Object.h"
+#include "Iterator.h"
 
 /*
 @startuml
@@ -66,4 +67,12 @@ void *get(ArrayList *self, size_t position) {
 size_t size(ArrayList *self) {
 	return self->_size;
 }
+
+Iterator iterator(ArrayList *self) {
+	// TODO
+	check(0, NotImplementedOperationException, "ArrayList.iterator()");
+	Iterator iterator;
+	return iterator;
+}
+
 
