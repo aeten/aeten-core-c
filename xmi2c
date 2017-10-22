@@ -390,34 +390,15 @@ definition_method_visitor() {
 	eval "${method_visitor_init}"
 	local _cls
 
-	if ${_static} || { ${_default} && [ ${CLASS_TYPE} = interface ]; } || { ( ! ${_default} ) && [ ${CLASS_TYPE} = class ]; }; then
-		if ${_constructor} || [ ${c_class} = ${C_CLASS} ] ; then
-			_args=$(echo "${_args}"|sed "s/^${c_class}\\* _self/${C_CLASS}* self/")
-		fi
-		cat - <<EOF
+	_args=$(echo "${_args}"|sed "s/^${c_class}\\* self/${C_CLASS}* self/")
+	${_constructor} && _name=new${_name}
+	
+	cat - <<EOF
 
-${_static_prefix}${_type} ${_function}(${_args}) {
-EOF
-		if ${_constructor}; then
-			cat - <<EOF
-	_${c_class^^}_INIT
-	// TODO: Implement
-	return (${_type})self;
-}
-EOF
-		elif [ ${c_class} = ${C_CLASS} ]; then
-			cat - <<EOF
+${_type} _${_name}(${_args}) {
 	// TODO: Implement
 }
 EOF
-		else
-			cat - <<EOF
-	${C_CLASS}* self = (${C_CLASS}*) _self;
-	// TODO: Implement
-}
-EOF
-		fi
-	fi
 }
 
 import_method_visitor() {
@@ -506,6 +487,16 @@ constructor_definition_method_visitor() {
 include_class_visitor() {
 	eval "${class_visitor_init}"
 	echo '#include "'${namespace//./\/}/${classname}.h'"'
+}
+
+definition_class_visitor() {
+	eval "${class_visitor_init}"
+	eval "${methods_class_visitor_init}"
+	IFS=$'\n'
+	for method in ${methods}; do
+		visit_method definition "${c_class}" "${method}"
+	done
+	unset IFS
 }
 
 typedef_class_visitor() {
@@ -771,13 +762,26 @@ c_source_class_visitor() {
 	eval "${class_visitor_init}"
 	local cls
 
-	cat - <<EOF
+	if [ ${classtype} = class ]; then
+
+		cat - <<EOF
 /*
 @startuml ${CLASS_NAME}
-!include ${NAMESPACE//./\/}/${CLASS_NAME}.puml
+!include Object.c
+namespace ${NAMESPACE} {
+	class ${CLASS_NAME} implements ${PARENT_NAMESPACE}.${PARENT_NAME} {
+	}
+}
 @enduml
 */
+
+$(for _cls in ${CLASS_HIERARCHY}; do
+	visit_class definition ${_cls}
+done)
+
 EOF
+
+	fi
 }
 
 CLASS_HIERARCHY=$(echo -e "${OBJECT}\n$(get_parents ${CLASS}|tac)\n${CLASS}"|sed '/^$/d'|uniq)
