@@ -12,7 +12,7 @@ namespace aeten.collection {
 		V* put(K* key, V* value) <<default>> <<optional>>
 		V* remove(K* key) <<default>> <<optional>>
 		size_t size()
-		Collection<V> values()
+		Collection<V>* values()
 		Set<MapEntry<K,V>> entrySet()
 		Set<K> keySet()
 	}

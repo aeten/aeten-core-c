@@ -2,6 +2,7 @@
 
 #define import
 #include "Number.h"
+#include "Hasher.h"
 
 /*
 @startuml
@@ -9,18 +10,20 @@
 namespace aeten {
 	class Integer implements Number {
 		{static} + Integer(int value) <<constructor>>
-		{static} + from_number(Number* value) <<constructor>>
+		{static} + fromNumber(Number* value) <<constructor>>
 		- value: int
 	}
 }
 @enduml
 */
 
+#define DEFAULT_HASH_BITS 7
+
 void _new(Integer* self, int value) {
 	self->_value = value;
 }
 
-void _new_from_number(Integer* self, aeten_Number *value) {
+void _new_fromNumber(Integer* self, aeten_Number *value) {
 	self->_value = Number_signedValue(value);
 }
 
@@ -48,3 +51,6 @@ double _doubleValue(Integer* self) {
 	return (double) self->_value;
 }
 
+long hashCode(Integer* self) {
+	return Hasher_hash64(self->_value, DEFAULT_HASH_BITS);
+}

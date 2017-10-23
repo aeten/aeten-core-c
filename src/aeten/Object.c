@@ -1,19 +1,38 @@
 #include "Object.h"
 
+#define import
+#include "Hasher.h"
+
 /*
 @startuml
+!include Hasher.c
 namespace aeten {
 	interface Object<T> {
 		# finalize() <<default>>
 		+ delete() <<default>>
+		+ long hashCode() <<default>>
+		+ bool equals(void* other) <<default>>
 	}
 }
 @enduml
 */
 
-void _finalize(aeten_Object* self) {}
-void _delete(aeten_Object* self) {
+
+#define DEFAULT_HASH_BITS 7
+
+void _finalize(Object* self) {}
+void _delete(Object* self) {
 	self->finalize(self);
 	free(self);
 }
+
+bool _equals(Object *self, void *other) {
+	check(other!=NULL, NullPointerException, "Object.equals(other), other is null");
+	return self==other;
+}
+
+long _hashCode(Object *self) {
+	Hasher_hashPointer(self, DEFAULT_HASH_BITS);
+}
+
 

@@ -380,9 +380,11 @@ ${_type}  ${_function/${CLASS_NAME}/${CLASS_NAME}_fromStack}(${_args_without_sel
 ${_type} *${_function}(${_args_without_self});
 EOF
 	else
-		cat - <<EOF
-${_type} ${C_CLASS}_${_function}(${_args/${c_class}\* self/${C_CLASS}* self});
-EOF
+		if ${_static}; then
+			echo "${_type} ${C_CLASS}_${_function}(${_args_without_self});"
+		else
+			echo "${_type} ${C_CLASS}_${_function}(${_args/${c_class}\* self/${C_CLASS}* self});"
+		fi
 	fi
 }
 
@@ -425,13 +427,23 @@ helper_method_visitor() {
 			echo "static ${_type} _${_name}(${_args/${c_class}\* self/${C_CLASS}* self});"
 		fi
 		if ( ! ${_override} ); then
-			cat - <<EOF
+			if ${_static}; then
+				cat - <<EOF
+static inline ${_type} _${_name}(${_args_without_self});
+${_type} ${C_CLASS}_${_function}(${_args_without_self}) {
+	return _${_name}($(echo "${_args_without_self}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
+}
+
+EOF
+			else
+				cat - <<EOF
 ${_type} ${C_CLASS}_${_function}(${_args/${c_class}\* self/${C_CLASS}* self}) {
 	check(self != NULL, NullPointerException, "self");
 	return self->_self->${_function}($(echo "${_args/self/self->_self}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
 }
 
 EOF
+			fi
 		fi
 	else
 		cat - <<EOF
