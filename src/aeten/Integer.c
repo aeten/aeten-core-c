@@ -2,7 +2,7 @@
 
 #define import
 #include "Number.h"
-#include "Hasher.h"
+#include "Hash.h"
 
 /*
 @startuml
@@ -52,5 +52,5 @@ double _doubleValue(Integer* self) {
 }
 
 long hashCode(Integer* self) {
-	return Hasher_hash64(self->_value, DEFAULT_HASH_BITS);
+	return Hash_hash64(self->_value, DEFAULT_HASH_BITS);
 }

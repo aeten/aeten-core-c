@@ -1,12 +1,13 @@
-#include "Hasher.h"
+#include "Hash.h"
 
 /*!
 @startuml
 namespace aeten {
-	interface Hasher<T> {
+	interface Hash<T> {
 		uint64_t hash(T* value, unsigned bits) <<default>>
 		{static} uint32_t hash32(uint32_t value, unsigned bits)
 		{static} uint64_t hash64(uint64_t value, unsigned bits)
+		{static} uint64_t hashBuffer(char* ptr, size_t size, unsigned bits)
 		{static} uint64_t hashPointer(void* ptr, unsigned bits)
 	}
 }
@@ -28,7 +29,7 @@ namespace aeten {
 #define hash_long(val, bits) _hash64(val, bits)
 #endif
 
-uint64_t _hash(Hasher* hasher, void *value, unsigned bits) {
+uint64_t _hash(Hash* hash, void *value, unsigned bits) {
 	return _hashPointer(value, bits);
 }
 
@@ -59,6 +60,21 @@ uint64_t _hash64(uint64_t value, unsigned bits) {
 
 	/* High bits are more random, so use them. */
 	return hash >> (64 - bits);
+}
+
+uint64_t _hashBuffer(char *buffer, size_t size, unsigned bits) {
+	uint64_t hash;
+	if (size <= 32) {
+		hash = _hash32(*((uint32_t*)buffer), bits);
+	} else if (size <= 64) {
+		hash = _hash64(*((uint64_t*)buffer), bits);
+	} else {
+		hash = 0;
+		for(long i=0; i<size; ++i) {
+			hash = (hash^buffer[i])*GOLDEN_RATIO_PRIME_64;
+		}
+	}
+	return hash;
 }
 
 uint64_t _hashPointer(void *ptr, unsigned bits) {

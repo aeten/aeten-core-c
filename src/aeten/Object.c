@@ -1,11 +1,10 @@
 #include "Object.h"
 
 #define import
-#include "Hasher.h"
+#include "Hash.h"
 
 /*
 @startuml
-!include Hasher.c
 namespace aeten {
 	interface Object<T> {
 		# finalize() <<default>>
@@ -32,7 +31,7 @@ bool _equals(Object *self, void *other) {
 }
 
 long _hashCode(Object *self) {
-	Hasher_hashPointer(self, DEFAULT_HASH_BITS);
+	Hash_hashPointer(self, DEFAULT_HASH_BITS);
 }
 
 
