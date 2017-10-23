@@ -6,7 +6,7 @@
 @startuml
 !include Object.c
 !include concurrent/Condition.c
-namespace aeten.concurrent.pthread {
+namespace aeten.concurrent.posix {
 	class ReentrantLockCondition implements aeten.concurrent.Condition {
 		+ {static} ReentrantLockCondition(pthread_mutex_t *mutex) <<constructor>>
 		- mutex: pthread_mutex_t*

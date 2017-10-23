@@ -4,14 +4,14 @@
 
 #define import
 #include "concurrent/Condition.h"
-#include "concurrent/pthread/ReentrantLockCondition.h"
+#include "concurrent/posix/ReentrantLockCondition.h"
 
 /*
 @startuml
 !include concurrent/Lock.c
 !include concurrent/Condition.c
-!include concurrent/pthread/ReentrantLockCondition.c
-namespace aeten.concurrent.pthread {
+!include concurrent/posix/ReentrantLockCondition.c
+namespace aeten.concurrent.posix {
 	class ReentrantLock implements aeten.concurrent.Lock {
 		+ {static} ReentrantLock() <<constructor>>
 		# void finalize() <<override>>

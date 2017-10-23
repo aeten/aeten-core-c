@@ -3,7 +3,7 @@
 /*
 @startuml
 !include Object.c
-namespace aeten.collection {
+namespace aeten {
 	interface Set<T> extends Collection {
 		+ bool contains(T* element)
 		+ bool add(T* element) <<default>> <<optional>>

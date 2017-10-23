@@ -3,8 +3,8 @@
 #include "BlockingQueueTest.h"
 
 #define import
-#include "ArrayBlockingQueue.h"
-#include "BlockingQueue.h"
+#include "concurrent/ArrayBlockingQueue.h"
+#include "concurrent/BlockingQueue.h"
 #include "test/Testable.h"
 #include "Integer.h"
 #include "Number.h"
@@ -14,9 +14,9 @@
 !include Object.c
 !include Integer.c
 !include concurrent/Condition.c
-!include collection/ArrayBlockingQueue.c
+!include concurrent/ArrayBlockingQueue.c
 !include test/Testable.c
-namespace aeten.collection {
+namespace aeten {
 	class BlockingQueueTest implements aeten.test.Testable {
 		+ {static} BlockingQueueTest() <<constructor>>
 	}

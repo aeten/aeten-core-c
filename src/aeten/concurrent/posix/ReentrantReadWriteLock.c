@@ -16,7 +16,7 @@
 !include aeten/concurrent/ReadWriteLock.c
 !include ReentrantReadLock.c
 !include ReentrantWriteLock.c
-namespace aeten.concurrent.pthread {
+namespace aeten.concurrent.posix {
 	class ReentrantReadWriteLock implements aeten.concurrent.ReadWriteLock {
 		+ {static} ReentrantReadWriteLock() <<constructor>>
 		- rw_lock: pthread_rwlock_t

@@ -3,7 +3,7 @@
 /*
 @startuml
 !include Iterable.c
-namespace aeten.collection {
+namespace aeten {
 	interface Collection<T> extends Iterable {
 		add(T* element)
 		size_t size()
@@ -12,7 +12,7 @@ namespace aeten.collection {
 		Ensures that this collection contains the specified element (optional operation).
 	end note
 	note right of Collection::size
-		Return the size of the collection.
+		Return the size of the 
 	end note
 }
 @enduml

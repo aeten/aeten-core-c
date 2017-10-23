@@ -3,7 +3,7 @@
 /*!
 @startuml
 !include Iterator.c
-namespace aeten.collection {
+namespace aeten {
 	interface Iterable<T> {
 		+ Iterator<T> iterator()
 	}

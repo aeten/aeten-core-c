@@ -3,7 +3,7 @@
 /*!
 @startuml
 !include Object.c
-namespace aeten.collection {
+namespace aeten {
 	interface Iterator<T> {
 		+bool has_next()
 		+T* next()

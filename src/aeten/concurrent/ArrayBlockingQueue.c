@@ -2,8 +2,8 @@
 
 #define import
 #include "concurrent/Lock.h"
-#include "concurrent/pthread/ReentrantLock.h"
 #include "concurrent/Condition.h"
+#include "concurrent/posix/ReentrantLock.h"
 #include "Object.h"
 #include "Iterator.h"
 
@@ -11,12 +11,12 @@
 @startuml
 !include Object.c
 !include Collection.c
+!include Queue.c
 !include concurrent/Condition.c
 !include concurrent/Lock.c
-!include concurrent/pthread/ReentrantLock.c
-!include Queue.c
-!include BlockingQueue.c
-namespace aeten.collection {
+!include concurrent/BlockingQueue.c
+!include concurrent/posix/ReentrantLock.c
+namespace aeten.concurrent {
 	class ArrayBlockingQueue<T> implements BlockingQueue {
 		+ {static} ArrayBlockingQueue(unsigned capacity)
 		# void finalize() <<override>>

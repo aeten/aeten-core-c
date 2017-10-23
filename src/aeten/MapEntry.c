@@ -3,7 +3,7 @@
 /*
 @startuml
 !include Object.c
-namespace aeten.collection {
+namespace aeten {
 	interface MapEntry<K,V> {
 		K* getKey()
 		V* getValue()

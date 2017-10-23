@@ -10,7 +10,7 @@
 @startuml
 !include Object.c
 !include List.c
-namespace aeten.collection {
+namespace aeten {
 	class ArrayList<T> implements List {
 		- capacity : size_t
 		- size : size_t

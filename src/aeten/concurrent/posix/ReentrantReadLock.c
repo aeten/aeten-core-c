@@ -9,7 +9,7 @@
 /*
 @startuml
 !include concurrent/Lock.c
-namespace aeten.concurrent.pthread {
+namespace aeten.concurrent.posix {
 	class ReentrantReadLock implements aeten.concurrent.Lock {
 		+ {static} ReentrantReadLock(pthread_rwlock_t* rw_lock) <<constructor>>
 		- rw_lock: pthread_rwlock_t*

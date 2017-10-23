@@ -17,9 +17,9 @@
 !include Object.c
 !include Integer.c
 !include aeten/test/Testable.c
-!include aeten/collection/List.c
-!include aeten/collection/ArrayList.c
-namespace aeten.collection {
+!include aeten/List.c
+!include aeten/ArrayList.c
+namespace aeten {
 	class ListTest implements aeten.test.Testable {
 		{static} + ListTest(List* list) <<constructor>>
 

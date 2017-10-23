@@ -4,7 +4,7 @@
 @startuml
 !include Object.c
 !include Collection.c
-namespace aeten.collection {
+namespace aeten {
 	interface List<T> extends Collection {
 		+ T* get(size_t position)
 		+ set(size_t position, T* element)

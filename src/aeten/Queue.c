@@ -3,7 +3,7 @@
 /*
 @startuml
 !include Collection.c
-namespace aeten.collection {
+namespace aeten {
 	interface Queue<T> extends Collection {
 		void add(T* element) <<default>> <<override>>
 		bool offer(T* element)

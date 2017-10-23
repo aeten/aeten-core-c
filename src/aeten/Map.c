@@ -6,7 +6,7 @@
 !include Collection.c
 !include Set.c
 !include MapEntry.c
-namespace aeten.collection {
+namespace aeten {
 	interface Map<K,V> {
 		V* get(K* key)
 		V* put(K* key, V* value) <<default>> <<optional>>
