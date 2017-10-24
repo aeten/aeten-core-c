@@ -27,10 +27,10 @@ rule objdep
             local _inc; $
             local _dir; $
             local _file; $
-            for _inc in $$(sed -n 's/^!include \([^!]\+\)/\1/p' "$${1}"); do $
-                for _dir in $$(echo ${srcdir} ${testdir} ${srcdir}/aeten ${testdir}/aeten $$(dirname $${1}) ${srcdir}/$${_srcdir##${testdir}/}|sort -u); do $
+            for _inc in $$(sed -n 's/^!include \([^!]\+\)/\1/p; s/^#include\s\+"\([A-Z][^"]\+\)\.h"/\1.c/p' "$${1}"|sort -u); do $
+                for _dir in $$(echo ${srcdir} ${testdir} ${srcdir}/aeten ${testdir}/aeten $$(dirname $${1}) ${srcdir}/$${_srcdir##${testdir}/}|tr ' ' '\n'|sort -u); do $
                     _file="$${_dir}/$${_inc}"; $
-                    [ -f $${_file} ] || continue; $
+                    [ -f $${_file} ] && [ $${_file} != $${1} ] || continue; $
                     echo ${generated}/$${_file%%.c}.h; $
                     get_includes "$${_file}"; $
                 done; $
