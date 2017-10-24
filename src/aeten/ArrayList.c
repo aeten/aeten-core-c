@@ -14,9 +14,10 @@ namespace aeten {
 	class ArrayList<T> implements List {
 		- capacity : size_t
 		- size : size_t
-		- elements : T**
+		- element_size : size_t
+		- elements : void*
 
-		{static} + ArrayList(size_t initial_capacity) <<constructor>>
+		{static} + ArrayList(size_t initial_capacity, size_t element_size) <<constructor>>
 		# finalize() <<override>>
 	}
 	note right of ArrayList::ArrayList
@@ -26,13 +27,14 @@ namespace aeten {
 @enduml
 */
 
-void _new(ArrayList *self, size_t initial_capacity) {
+void _new(ArrayList *self, size_t initial_capacity, size_t element_size) {
 	if (initial_capacity>0) {
-		self->_elements = malloc(initial_capacity * sizeof(self->_elements));
+		self->_elements = malloc(initial_capacity * element_size);
 		check(self->_elements != NULL, NoSuchMemoryError, "initial_capacity=%u", initial_capacity);
 	} else {
 		self->_elements = NULL;
 	}
+	self->_element_size = element_size;
 	self->_capacity = initial_capacity;
 	self->_size = 0;
 }
@@ -46,22 +48,22 @@ void _finalize(ArrayList *self) {
 
 void _set(ArrayList *self, size_t position, void *element) {
 	check(position < self->_size, IndexOutOfBoundException, "position=%u; array.length=%u", position, self->_size);
-	self->_elements[position] = element;
+	memcpy(((char*)self->_elements) + (position * self->_element_size), element, self->_element_size);
 }
 
 void _add(ArrayList *self, void *element) {
 	if (self->_capacity == self->_size) {
 		unsigned int capacity = ((self->_capacity * 3) / 2) + 1;
-		self->_elements = realloc(self->_elements, capacity * sizeof(self->_elements));
+		self->_elements = realloc(self->_elements, capacity * self->_element_size);
 		check(self->_elements != NULL, NoSuchMemoryError, "capacity=%u", capacity);
 		self->_capacity = capacity;
 	}
-	self->_elements[self->_size++] = element;
+	memcpy(((char*)self->_elements) + (self->_size++ * self->_element_size), element, self->_element_size);
 }
 
 void *_get(ArrayList *self, size_t position) {
 	check(position < self->_size, IndexOutOfBoundException, "position=%u; array.length=%u", position, self->_size);
-	return self->_elements[position];
+	return (void*)(((char*)self->_elements) + (position * self->_element_size));
 }
 
 size_t _size(ArrayList *self) {

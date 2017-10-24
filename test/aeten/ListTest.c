@@ -7,15 +7,10 @@
 #define import
 #include "ArrayList.h"
 #include "List.h"
-#include "Integer.h"
-#include "Number.h"
-#include "Object.h"
 #include "test/Testable.h"
 
 /*!
 @startuml
-!include Object.c
-!include Integer.c
 !include aeten/test/Testable.c
 !include aeten/List.c
 !include aeten/ArrayList.c
@@ -30,7 +25,7 @@ namespace aeten {
 @enduml
 */
 
-#define LIST(list, args) {#list, new_##list(args)}
+#define LIST(list, ...) { #list, new_##list( __VA_ARGS__ ) }
 struct test_list {
 	char *name;
 	List *list;
@@ -40,7 +35,7 @@ int main(int argc, char** argv) {
 	_counter=0;
 	bool result;
 
-	struct test_list list[] = {LIST(ArrayList, 0)};
+	struct test_list list[] = { LIST(ArrayList, 0, sizeof(void*)) };
 
 	for (int i=0; i<(sizeof(list)/sizeof(struct test_list)); ++i) {
 		Testable* test = new_ListTest(list[i].list);
@@ -86,13 +81,13 @@ static void catch_segv(bool iscatch) {
 
 static bool _test(ListTest* self) {
 	List *list = self->_list;
-	Number *number;
+	int number;
 	int i;
 	for (i=0; i<10; ++i) {
-		number = new_Integer(i);
-		List_add(list, (Object*)number);
-		number = (Number*)List_get(list, i);
-		if (Number_signedValue(number) != i) {
+		number = i;
+		List_add(list, &number);
+		number = *(int*)List_get(list, i);
+		if (number != i) {
 			fprintf(stderr, "[ FAIL ] List_get(list, %d) != %d\n", i, i);
 			return false;
 		}
@@ -101,9 +96,9 @@ static bool _test(ListTest* self) {
 	catch_segv(1);
 	if (setjmp(context)) {
 		catch_segv(0);
-		return (i != Number_signedValue(number));
+		return (i != number);
 	}
-	number = (Number*)List_get(list, i);
+	number = *((int*)List_get(list, i));
 	catch_segv(0);
 	return false;
 }
