@@ -19,8 +19,6 @@ typedef struct {
 //! }
 //! @enduml
 
-
-
 /** Check expression or throws exception (TODO) */
 #define check(expression, exception, message_format, ...) { \
 		int _ret = 0; \
@@ -31,5 +29,10 @@ typedef struct {
 		} \
 		_ret; \
 	}
+
+#define _AETEN_MARK 0x01C3860A /* SOH Æ 10 */
+#define isObject(pointer) ( \
+	(pointer != NULL) && ((Object*)pointer)->_mark == _AETEN_MARK \
+)
 
 #endif // AETEN_LANG_H

@@ -688,6 +688,7 @@ EOF
 	done
 	echo
 		echo "struct _${c_class} {"
+		echo -e "\tuint32_t const _mark;"
 		echo -e "\t${c_class}* const _self;"
 		for cls in ${CLASS_HIERARCHY}; do
 			visit_class methods ${cls}
@@ -739,8 +740,11 @@ void _${C_CLASS}_init(${c_class}* self) {
 EOF
 	if [ ${classtype} = class ]; then
 		cat - <<EOF
-	assert(self != NULL);
-	memcpy(self, &self, sizeof(${C_CLASS}*));
+	check(self != NULL, NullPointerException, "Cannot int instance of ${C_CLASS}");
+	uint32_t mark = _AETEN_MARK;
+	char *ptr = (char*)self;
+	memcpy(ptr + offsetof(${C_CLASS}, _mark), &mark, sizeof(self->_mark));
+	memcpy(ptr + offsetof(${C_CLASS}, _self), &self, sizeof(self->_self));
 EOF
 	fi
 
