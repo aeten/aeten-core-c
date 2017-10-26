@@ -16,35 +16,35 @@ namespace aeten {
 @enduml
 */
 
-void Integer_new(Integer* self, int value) {
+void _new(Integer* self, int value) {
 	self->_value = value;
 }
 
-void Integer_new_from_number(Integer* self, aeten_Number *value) {
+void _new_from_number(Integer* self, aeten_Number *value) {
 	self->_value = Number_signedValue(value);
 }
 
-long signedLongValue(Integer* self) {
+long _signedLongValue(Integer* self) {
 	return (long) self->_value;
 }
 
-int signedValue(Integer* self) {
+int _signedValue(Integer* self) {
 	return self->_value;
 }
 
-unsigned unsignedValue(Integer* self) {
+unsigned _unsignedValue(Integer* self) {
 	return (unsigned) self->_value;
 }
 
-uint64_t unsignedLongValue(Integer* self) {
+uint64_t _unsignedLongValue(Integer* self) {
 	return (unsigned long) self->_value;
 }
 
-float floatValue(Integer* self) {
+float _floatValue(Integer* self) {
 	return (float) self->_value;
 }
 
-double doubleValue(Integer* self) {
+double _doubleValue(Integer* self) {
 	return (double) self->_value;
 }
 

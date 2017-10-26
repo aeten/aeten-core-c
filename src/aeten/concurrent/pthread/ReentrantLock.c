@@ -21,28 +21,28 @@ namespace aeten.concurrent.pthread {
 @enduml
 */
 
-void ReentrantLock_new(ReentrantLock* self) {
+void _new(ReentrantLock* self) {
 	pthread_mutex_t pthread_mutex = PTHREAD_MUTEX_INITIALIZER;
 	self->_mutex = pthread_mutex;
 }
 
-void finalize(ReentrantLock* self) {
+void _finalize(ReentrantLock* self) {
 	pthread_mutex_destroy(&self->_mutex);
 }
 
-void lock(ReentrantLock* self) {
+void _lock(ReentrantLock* self) {
 	pthread_mutex_lock(&self->_mutex);
 }
 
-bool tryLock(ReentrantLock* self) {
+bool _tryLock(ReentrantLock* self) {
 	pthread_mutex_trylock(&self->_mutex) == 0;
 }
 
-void unlock(ReentrantLock* self) {
+void _unlock(ReentrantLock* self) {
 	pthread_mutex_unlock(&self->_mutex);
 }
 
-Condition *newCondition(ReentrantLock* self) {
+Condition *_newCondition(ReentrantLock* self) {
 	return new_ReentrantLockCondition(&self->_mutex);
 }
 

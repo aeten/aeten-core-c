@@ -10,7 +10,7 @@ namespace aeten.collection {
 	interface Map<K,V> {
 		V* get(K* key)
 		V* put(K* key, V* value) <<default>> <<optional>>
-		V* remove(K* key) <<optional>>
+		V* remove(K* key) <<default>> <<optional>>
 		size_t size()
 		Collection<V> values()
 		Set<MapEntry<K,V>> entrySet()
@@ -29,15 +29,12 @@ namespace aeten.collection {
 @enduml
 */
 
-void* put(Map* map, void *key, void *value) {
+void* _put(Map* map, void *key, void *value) {
 	check(0, UnsupportedOperationException, "Map.put()");
 	return NULL;
 }
 
-/* confict...
-TODO: Resolve confict with remove function in stdio.h by prefiying all implementation methods by "_".
-void* remove(Map* map, void *key) {
+void* _remove(Map* map, void *key) {
 	check(0, UnsupportedOperationException, "Map.remove()");
 	return NULL;
 }
-*/

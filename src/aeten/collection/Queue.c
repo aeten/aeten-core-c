@@ -14,7 +14,7 @@ namespace aeten.collection {
 @enduml
 */
 
-void add(Queue* queue, void* element) {
+void _add(Queue* queue, void* element) {
 	Queue_offer(queue, element);
 }
 

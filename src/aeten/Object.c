@@ -11,8 +11,8 @@ namespace aeten {
 @enduml
 */
 
-void finalize(aeten_Object* self) {}
-void delete(aeten_Object* self) {
+void _finalize(aeten_Object* self) {}
+void _delete(aeten_Object* self) {
 	self->finalize(self);
 	free(self);
 }

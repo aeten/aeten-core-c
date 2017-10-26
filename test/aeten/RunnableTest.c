@@ -19,11 +19,11 @@ namespace aeten {
 @enduml
 */
 
-inline void RunnableTest_new(RunnableTest* self) {
+inline void _new(RunnableTest* self) {
 	self->result = (10 * ++_count);
 }
 
-void run(RunnableTest* self) {
+void _run(RunnableTest* self) {
 	self->result++;
 }
 

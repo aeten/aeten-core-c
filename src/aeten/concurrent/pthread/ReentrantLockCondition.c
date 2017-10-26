@@ -16,21 +16,21 @@ namespace aeten.concurrent.pthread {
 @enduml
 */
 
-void ReentrantLockCondition_new(ReentrantLockCondition* self, pthread_mutex_t *mutex) {
+void _new(ReentrantLockCondition* self, pthread_mutex_t *mutex) {
 	self->_mutex = mutex;
 	pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 	self->_cond = cond;
 }
 
-void await(ReentrantLockCondition* self) {
+void _await(ReentrantLockCondition* self) {
 	pthread_cond_wait(&self->_cond, self->_mutex);
 }
 
-void signal(ReentrantLockCondition* self) {
+void _signal(ReentrantLockCondition* self) {
 	pthread_cond_signal(&self->_cond);
 }
 
-void signalAll(ReentrantLockCondition* self) {
+void _signalAll(ReentrantLockCondition* self) {
 	pthread_cond_broadcast(&self->_cond);
 }
 

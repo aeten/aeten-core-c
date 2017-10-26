@@ -441,7 +441,7 @@ helper_method_visitor() {
 
 	if  ( ! ${_constructor} ); then
 		if ( [ ${CLASS_TYPE} = class ] && ( [ ${classtype} = interface ] && ( ! ${_default} ) ) || ( ${_override} && [ ${c_class} = ${C_CLASS} ] ) ) || ( [ ${c_class} = ${C_CLASS} ] && ${_default} ); then
-			echo "static ${_type} ${_name}(${_args/${c_class}\* self/${C_CLASS}* self});"
+			echo "static ${_type} _${_name}(${_args/${c_class}\* self/${C_CLASS}* self});"
 		fi
 		if ( ! ${_override} ); then
 			cat - <<EOF
@@ -454,19 +454,19 @@ EOF
 		fi
 	else
 		cat - <<EOF
-inline static void ${CLASS_NAME}_new${_name}(${_args/${c_class}\* self/${C_CLASS}* self});
+inline static void _new${_name}(${_args/${c_class}\* self/${C_CLASS}* self});
 ${C_PARENT}* ${_function}(${_args_without_self}) {
 	${C_CLASS}* self = malloc(sizeof(${C_CLASS}));
 	check(self != NULL, HeapAllocationException, "self = malloc(%u)", sizeof(${C_CLASS}));
 	_${C_CLASS}_init(self);
-	${CLASS_NAME}_new${_name}($(echo "${_args}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
+	_new${_name}($(echo "${_args}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
 	return (${C_PARENT}*)self;
 }
 inline ${C_PARENT} ${_function/${CLASS_NAME}/${CLASS_NAME}_fromStack}(${_args_without_self}) {
 	${C_CLASS}* self = alloca(sizeof(${C_CLASS}));
 	check(self != NULL, StackAllocationException, "self = alloca(%u)", sizeof(${C_CLASS}));
 	_${C_CLASS}_init(self);
-	${CLASS_NAME}_new${_name}($(echo "${_args}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
+	_new${_name}($(echo "${_args}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
 	return *((${C_PARENT}*)self);
 }
 
@@ -477,7 +477,7 @@ ${C_PARENT}_Array* ${_function/new_/newArrayOf_}(${_args/${c_class}* self/size_t
 	array->size = sizeof(${C_CLASS});
 	for (size_t i=0; i<_length; ++i) {
 		_${C_CLASS}_init(&array->values[i]);
-		${CLASS_NAME}_new${_name}($(echo "${_args/self/&array->values[i]}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
+		_new${_name}($(echo "${_args/self/&array->values[i]}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
 	}
 	return (${C_PARENT}_Array*)array;
 }
@@ -489,7 +489,7 @@ EOF
 interface_init_method_visitor() {
 	eval "${method_visitor_init}"
 	if ( ! ${_constructor} ) && ${_default} && [ ${c_class} = ${C_CLASS} ] && [ ${CLASS_TYPE} = interface ]; then
-		echo -e "\tself->${_name} = ${_name};"
+		echo -e "\tself->${_name} = _${_name};"
 	fi
 }
 
@@ -539,7 +539,7 @@ helper_methods_class_visitor() {
 	local _method
 
 	if [ -n "${methods}" ]; then
-		echo -e "\t// Methods of ${c_class}"
+		echo -e "// Methods of ${c_class}"
 		IFS=$'\n'
 		for _method in ${methods}; do
 			visit_method helper "${c_class}" "${_method}"
@@ -568,7 +568,7 @@ attributes_instance_class_visitor() {
 	local _attribute
 
 	if [ -n "${attributes}" ]; then
-		echo -e "\t// Attributes of ${c_class}"
+		echo -e "// Attributes of ${c_class}"
 		IFS=$'\n'
 		for _attribute in ${attributes}; do
 			visit_attribute object_declaration "${_attribute}"
@@ -583,7 +583,7 @@ attributes_static_class_visitor() {
 	local _attribute
 
 	if [ -n "${attributes}" ]; then
-		echo -e "\t// Attributes of ${c_class}"
+		echo -e "// Attributes of ${c_class}"
 		IFS=$'\n'
 		for _attribute in ${attributes}; do
 			visit_attribute static_declaration "${_attribute}"

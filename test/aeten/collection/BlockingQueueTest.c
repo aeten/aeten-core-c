@@ -49,10 +49,10 @@ namespace aeten.collection {
 }
 
 
-void BlockingQueueTest_new(BlockingQueueTest *self) {
+void _new(BlockingQueueTest *self) {
 }
 
-bool test(BlockingQueueTest *self) {
+bool _test(BlockingQueueTest *self) {
 	int i, length=10;
 	BlockingQueue *queue = new_ArrayBlockingQueue(length);
 	queue_check_poll(false, -1);

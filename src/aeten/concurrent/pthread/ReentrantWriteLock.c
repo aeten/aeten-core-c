@@ -18,23 +18,23 @@ namespace aeten.concurrent.pthread {
 @enduml
 */
 
-void ReentrantWriteLock_new(ReentrantWriteLock* self, pthread_rwlock_t* rw_lock) {
+void _new(ReentrantWriteLock* self, pthread_rwlock_t* rw_lock) {
 	self->_rw_lock = rw_lock;
 }
 
-void lock(ReentrantWriteLock* self) {
+void _lock(ReentrantWriteLock* self) {
 	check(pthread_rwlock_wrlock(self->_rw_lock) == 0, RuntimeError, "pthread_rwlock_wrlock");
 }
 
-bool tryLock(ReentrantWriteLock* self) {
+bool _tryLock(ReentrantWriteLock* self) {
 	return (0 == pthread_rwlock_trywrlock(self->_rw_lock));
 }
 
-void unlock(ReentrantWriteLock* self) {
+void _unlock(ReentrantWriteLock* self) {
 	check(pthread_rwlock_unlock(self->_rw_lock) == 0, RuntimeError, "pthread_rwlock_unlock");
 }
 
-Condition* newCondition(ReentrantWriteLock* self) {
+Condition* _newCondition(ReentrantWriteLock* self) {
 	check(0, UnsupportedOperationException, "ReentrantWriteLock.newCondition()");
 	return NULL;
 }

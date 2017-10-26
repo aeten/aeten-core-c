@@ -36,7 +36,7 @@ namespace aeten.collection {
 static bool _queue_push(ArrayBlockingQueue* self, void *element, bool try_);
 static void *_queue_pop(ArrayBlockingQueue* self, bool try_);
 
-void ArrayBlockingQueue_new(ArrayBlockingQueue* self, unsigned capacity) {
+void _new(ArrayBlockingQueue* self, unsigned capacity) {
 	self->_array = malloc(capacity * sizeof(void*));
 	check(self->_array, HeapAllocationException, "Array(capacity=%u * size=%u)", capacity, sizeof(void*));
 	self->_lock = new_ReentrantLock();
@@ -48,14 +48,14 @@ void ArrayBlockingQueue_new(ArrayBlockingQueue* self, unsigned capacity) {
 	self->_tail = -1;
 }
 
-void finalize(ArrayBlockingQueue* self) {
+void _finalize(ArrayBlockingQueue* self) {
 	Lock_delete(self->_lock);
 	Condition_delete(self->_not_full);
 	Condition_delete(self->_not_empty);
 	free(self->_array);
 }
 
-size_t size(ArrayBlockingQueue* self) {
+size_t _size(ArrayBlockingQueue* self) {
 	size_t size;
 	Lock_lock(self->_lock);
 	size = self->_size;
@@ -64,15 +64,15 @@ size_t size(ArrayBlockingQueue* self) {
 }
 
 
-static bool offer(ArrayBlockingQueue* self, void *element) {
+static bool _offer(ArrayBlockingQueue* self, void *element) {
 	return _queue_push(self, element, true);
 }
 
-static void *poll(ArrayBlockingQueue* self) {
+static void *_poll(ArrayBlockingQueue* self) {
 	return _queue_pop(self, true);
 }
 
-static void *peek(ArrayBlockingQueue* self) {
+static void *_peek(ArrayBlockingQueue* self) {
 	void *element = NULL;
 	Lock_lock(self->_lock);
 	if (self->_size != 0) {
@@ -82,15 +82,15 @@ static void *peek(ArrayBlockingQueue* self) {
 	return element;
 }
 
-static void put(ArrayBlockingQueue* self, void *element) {
+static void _put(ArrayBlockingQueue* self, void *element) {
 	_queue_push(self, element, false);
 }
 
-static void *take(ArrayBlockingQueue* self) {
+static void *_take(ArrayBlockingQueue* self) {
 	return _queue_pop(self, false);
 }
 
-Iterator iterator(ArrayBlockingQueue *self) {
+Iterator _iterator(ArrayBlockingQueue *self) {
 	// TODO
 	check(0, NotImplementedOperationException, "ArrayBlockingQueue.iterator()");
 	Iterator iterator;
