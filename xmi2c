@@ -496,7 +496,10 @@ interface_init_method_visitor() {
 constructor_definition_method_visitor() {
 	eval "${method_visitor_init}"
 	if ( ! ${_constructor} ) ; then
-		echo ${_name}:${_default}
+		echo -n ${_name}
+		${_override} && echo -n :override
+		${_default} && echo -n :default
+		echo 
 	fi
 }
 
@@ -718,6 +721,7 @@ c_private_class_visitor() {
 	local _methods
 	local _method_name
 	local _default_methods
+	local _override_methods
 
 	cat - <<EOF
 #include <assert.h>
@@ -747,12 +751,13 @@ EOF
 		done)
 
 		for _method_name in ${_methods}; do
-			[ ${_method_name/:true/} != ${_method_name} ] && _default_methods+=$(echo "${_method_name/:true/}\n")
+			[ ${_method_name/:default/} != ${_method_name} ] && _default_methods+=$(echo "${_method_name/:*/}\n")
+			[ ${_method_name/:override/} != ${_method_name} ] && _override_methods+=$(echo "${_method_name/:*/}\n")
 		done
-		_methods=${_methods//:true/}
-		_methods=${_methods//:false/}
-		for _method_name in $(comm -13 --nocheck-order <(echo -e "${_default_methods}"|sort -u) <(echo -e "${_methods}"|sort -u)); do
-			echo -e "\tself->${_method_name} = ${_method_name};"
+		_methods=${_methods//:default/}
+		_methods=${_methods//:override/}
+		for _method_name in $({ echo -e "${_override_methods}"; comm -13 --nocheck-order <(echo -e "${_default_methods}"|sort -u) <(echo -e "${_methods}"|sort -u); }|sort -u); do
+			echo -e "\tself->${_method_name} = _${_method_name};"
 		done
 	fi
 	cat - <<EOF
