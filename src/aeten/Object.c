@@ -21,7 +21,7 @@ namespace aeten {
 
 void _finalize(Object* self) {}
 void _delete(Object* self) {
-	self->finalize(self);
+	Object_finalize(self);
 	free(self);
 }
 
