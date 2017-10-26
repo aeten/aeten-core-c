@@ -13,8 +13,8 @@ namespace aeten {
 		V* remove(K* key) <<default>> <<optional>>
 		size_t size()
 		Collection<V>* values()
-		Set<MapEntry<K,V>> entrySet()
-		Set<K> keySet()
+		Set<MapEntry<K,V>>* entrySet()
+		Set<K>* keySet()
 	}
 	note right of Map::get
 		Returns the value to which the specified key is mapped, or null if this map contains no mapping for the key.
