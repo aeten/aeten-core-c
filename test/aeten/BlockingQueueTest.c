@@ -27,24 +27,24 @@ namespace aeten {
 #define queue_check_offer(success, value) { \
 	Number *_value = new_Integer(value); \
 	if (BlockingQueue_offer(queue, _value) != success) { \
-		printf("[FAILED] %3d: Try to offer %d: success != " #success " (length=%u, valu=%u)\n", __LINE__, value, BlockingQueue_size(queue), Number_unsignedValue(_value)); \
+		printf("[FAILED] %3d: Try to offer %d: success != " #success " (length=%lu, value=%u)\n", __LINE__, value, BlockingQueue_size(queue), Number_unsignedValue(_value)); \
 		\
 		Number_delete(_value); \
 		BlockingQueue_finalize(queue); \
 		return false; \
 	} \
-	printf("[SUCCESS] %3d: Try to offer %d: success == " #success " (length=%u)\n", __LINE__, Number_signedValue(_value), BlockingQueue_size(queue)); \
+	printf("[SUCCESS] %3d: Try to offer %d: success == " #success " (length=%lu)\n", __LINE__, Number_signedValue(_value), BlockingQueue_size(queue)); \
 }
 
 #define queue_check_poll(success, value) { \
 	Number *_value = (Number*)BlockingQueue_poll(queue); \
 	if ((_value != NULL) != success) { \
-		printf("[FAILED] %3d: Try to poll %d: success != " #success " (length=%u)\n", __LINE__, value, BlockingQueue_size(queue)); \
+		printf("[FAILED] %3d: Try to poll %d: success != " #success " (length=%lu)\n", __LINE__, value, BlockingQueue_size(queue)); \
 		Number_delete(_value); \
 		BlockingQueue_finalize(queue); \
 		return false; \
 	} \
-	printf("[SUCCESS] %3d: Try to poll %d: success == " #success " (length=%u)\n", __LINE__, _value? Number_signedValue(_value): -1, BlockingQueue_size(queue)); \
+	printf("[SUCCESS] %3d: Try to poll %d: success == " #success " (length=%lu)\n", __LINE__, _value? Number_signedValue(_value): -1, BlockingQueue_size(queue)); \
 	if (_value) Number_delete(_value); \
 }
 

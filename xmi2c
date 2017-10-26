@@ -450,14 +450,14 @@ EOF
 inline static void _new${_name}(${_args/${c_class}\* self/${C_CLASS}* self});
 ${C_PARENT}* ${_function}(${_args_without_self}) {
 	${C_CLASS}* self = malloc(sizeof(${C_CLASS}));
-	check(self != NULL, HeapAllocationException, "self = malloc(%u)", sizeof(${C_CLASS}));
+	check(self != NULL, HeapAllocationException, "self = malloc(%lu)", sizeof(${C_CLASS}));
 	_${C_CLASS}_init(self);
 	_new${_name}($(echo "${_args}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
 	return (${C_PARENT}*)self;
 }
 inline ${C_PARENT} ${_function/${CLASS_NAME}/${CLASS_NAME}_fromStack}(${_args_without_self}) {
 	${C_CLASS}* self = alloca(sizeof(${C_CLASS}));
-	check(self != NULL, StackAllocationException, "self = alloca(%u)", sizeof(${C_CLASS}));
+	check(self != NULL, StackAllocationException, "self = alloca(%lu)", sizeof(${C_CLASS}));
 	_${C_CLASS}_init(self);
 	_new${_name}($(echo "${_args}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
 	return *((${C_PARENT}*)self);
@@ -465,7 +465,7 @@ inline ${C_PARENT} ${_function/${CLASS_NAME}/${CLASS_NAME}_fromStack}(${_args_wi
 
 ${C_PARENT}_Array* ${_function/new_/newArrayOf_}(${_args/${c_class}* self/size_t _length}) {
 	${C_CLASS}_Array* array = malloc(sizeof(${C_PARENT}_Array) + (_length * (sizeof(${C_CLASS}*)+sizeof(${C_CLASS}))));
-	check(array != NULL, HeapAllocationException, "array = malloc(%u+%u*%u)", sizeof(${C_CLASS}_Array), _length, sizeof(${C_CLASS}));
+	check(array != NULL, HeapAllocationException, "array = malloc(%lu+%lu*%lu)", sizeof(${C_CLASS}_Array), _length, sizeof(${C_CLASS}));
 	array->length = _length;
 	array->size = sizeof(${C_CLASS});
 	for (size_t i=0; i<_length; ++i) {
@@ -490,7 +490,7 @@ constructor_definition_method_visitor() {
 	eval "${method_visitor_init}"
 	if ( ! ${_constructor} ) ; then
 		echo -n ${_name}
-		${_override} && echo -n :override
+		${_override} && [ ${c_class} = ${C_CLASS} ] && echo -n :override
 		${_default} && echo -n :default
 		echo 
 	fi

@@ -5,7 +5,7 @@
 !include Collection.c
 namespace aeten {
 	interface Queue<T> extends Collection {
-		void add(T* element) <<default>> <<override>>
+		bool add(T* element) <<default>> <<override>>
 		bool offer(T* element)
 		T* poll()
 		T* peek()
@@ -14,7 +14,7 @@ namespace aeten {
 @enduml
 */
 
-void _add(Queue* queue, void* element) {
-	Queue_offer(queue, element);
+bool _add(Queue* queue, void* element) {
+	return Queue_offer(queue, element);
 }
 

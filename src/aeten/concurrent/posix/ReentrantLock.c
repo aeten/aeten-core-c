@@ -35,7 +35,7 @@ void _lock(ReentrantLock* self) {
 }
 
 bool _tryLock(ReentrantLock* self) {
-	pthread_mutex_trylock(&self->_mutex) == 0;
+	return (pthread_mutex_trylock(&self->_mutex) == 0);
 }
 
 void _unlock(ReentrantLock* self) {

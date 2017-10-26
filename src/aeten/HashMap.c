@@ -87,7 +87,6 @@ void *_put(HashMap *self, void* key, void *value) {
 	if (old_value == NULL) {
 		if (hash > self->_hash_max) {
 			uint64_t old_max = self->_hash_max;
-			uint64_t old_min = self->_hash_min;
 			self->_hash_max = hash;
 			// If is first allocation
 			if (self->_hash_min == UINT64_MAX) {
@@ -95,24 +94,23 @@ void *_put(HashMap *self, void* key, void *value) {
 			}
 			size_t size       = self->_hash_max - self->_hash_min + 1;
 			self->_hash_array = realloc(self->_hash_array, size * sizeof(List*));
-			check(self->_hash_array, HeadAllocationException, "realloc(%u)", size * sizeof(List*));
+			check(self->_hash_array, HeadAllocationException, "realloc(%lu)", size * sizeof(List*));
 			memset(self->_hash_array + (old_max - self->_hash_min + 1), 0x0, (self->_hash_max - old_max - 1) * sizeof(List*));
 		}
 		if (hash < self->_hash_min) {
 			size_t    old_size  = (self->_hash_max - self->_hash_min);
-			void     *old_array = self->_hash_array;
 			uint64_t  old_min   = self->_hash_min;
 			self->_hash_min     = hash;
 			size_t size         = self->_hash_max - self->_hash_min;
 			self->_hash_array   = realloc(self->_hash_array, size * sizeof(List*));
-			check(self->_hash_array, HeadAllocationException, "realloc(%u)", size * sizeof(List*));
+			check(self->_hash_array, HeadAllocationException, "realloc(%lu)", size * sizeof(List*));
 			memmove(self->_hash_array + (old_min - self->_hash_min), self->_hash_array, old_size * sizeof(List*));
 			memset(self->_hash_array, 0x0, (old_min - self->_hash_min) * sizeof(List*));
 		}
 		idx = hash - self->_hash_min;
 		if (self->_hash_array == NULL) {
 			self->_hash_array = calloc(1, sizeof(List*));
-			check(self->_hash_array, HeadAllocationException, "malloc(%u)", sizeof(List*));
+			check(self->_hash_array, HeadAllocationException, "malloc(%lu)", sizeof(List*));
 		}
 		if (self->_hash_array[idx] == NULL) {
 			self->_hash_array[idx] = new_ArrayList(1, (self->_key_size + self->_value_size));

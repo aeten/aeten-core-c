@@ -31,7 +31,7 @@ bool _equals(Object *self, void *other) {
 }
 
 long _hashCode(Object *self) {
-	Hash_hashPointer(self, DEFAULT_HASH_BITS);
+	return Hash_hashPointer(self, DEFAULT_HASH_BITS);
 }
 
 
