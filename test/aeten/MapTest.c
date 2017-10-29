@@ -46,7 +46,7 @@ int main(int argc, char** argv) {
 			printf("[SUCCES]");
 		}
 		printf(" Test %s of %s\n", argv[0], map[i].name);
-		Map_finalize(map[i].map);
+		Map_delete(map[i].map);
 	}
 	return _counter;
 }

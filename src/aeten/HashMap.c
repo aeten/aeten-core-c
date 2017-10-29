@@ -11,7 +11,7 @@
 #include "HashMapEntry.h"
 
 /*! \file
-@startuml
+@startuml HashMap
 !include Object.c
 !include Map.c
 !include List.c
@@ -25,16 +25,17 @@ namespace aeten {
 		- value_size: size_t
 		- hash_array: List**
 
-		{static} + HashMap(size_t key_size, size_t value_size) <<constructor>>
+		+ {static} HashMap(size_t key_size, size_t value_size) <<constructor>>
 		# finalize() <<override>>
-		V* put(K* key, V* value) <<override>>
-		V* remove(K* key) <<override>>
+		+ V* put(K* key, V* value) <<override>>
+		+ V* remove(K* key) <<override>>
 	}
 }
 @enduml
 
 @startuml HashMapEntry
 !include Object.c
+!include Map.c
 namespace aeten {
 	class HashMapEntry implements MapEntry
 }

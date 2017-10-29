@@ -30,7 +30,7 @@ namespace aeten {
 		printf("[FAILED] %3d: Try to offer %d: success != " #success " (length=%lu, value=%u)\n", __LINE__, value, BlockingQueue_size(queue), Number_unsignedValue(_value)); \
 		\
 		Number_delete(_value); \
-		BlockingQueue_finalize(queue); \
+		BlockingQueue_delete(queue); \
 		return false; \
 	} \
 	printf("[SUCCESS] %3d: Try to offer %d: success == " #success " (length=%lu)\n", __LINE__, Number_signedValue(_value), BlockingQueue_size(queue)); \
@@ -41,7 +41,7 @@ namespace aeten {
 	if ((_value != NULL) != success) { \
 		printf("[FAILED] %3d: Try to poll %d: success != " #success " (length=%lu)\n", __LINE__, value, BlockingQueue_size(queue)); \
 		Number_delete(_value); \
-		BlockingQueue_finalize(queue); \
+		BlockingQueue_delete(queue); \
 		return false; \
 	} \
 	printf("[SUCCESS] %3d: Try to poll %d: success == " #success " (length=%lu)\n", __LINE__, _value? Number_signedValue(_value): -1, BlockingQueue_size(queue)); \

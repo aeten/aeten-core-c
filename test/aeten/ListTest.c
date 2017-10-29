@@ -47,7 +47,7 @@ int main(int argc, char** argv) {
 			printf("[SUCCES]");
 		}
 		printf(" Test %s of %s\n", argv[0], list[i].name);
-		List_finalize(list[i].list);
+		List_delete(list[i].list);
 	}
 	return _counter;
 }

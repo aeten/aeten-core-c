@@ -1,20 +1,19 @@
 #include "Map.h"
 
 /*
-@startuml
+@startuml Map
 !include Object.c
 !include Collection.c
 !include Set.c
-!include MapEntry.c
 namespace aeten {
 	interface Map<K,V> {
-		V* get(K* key)
-		V* put(K* key, V* value) <<default>> <<optional>>
-		V* remove(K* key) <<default>> <<optional>>
-		size_t size()
-		Collection<V>* values()
-		Set<MapEntry<K,V>>* entrySet()
-		Set<K>* keySet()
+		+ V* get(K* key)
+		+ V* put(K* key, V* value) <<default>> <<optional>>
+		+ V* remove(K* key) <<default>> <<optional>>
+		+ size_t size()
+		+ Collection<V>* values()
+		+ Set<MapEntry<K,V>>* entrySet()
+		+ Set<K>* keySet()
 	}
 	note right of Map::get
 		Returns the value to which the specified key is mapped, or null if this map contains no mapping for the key.

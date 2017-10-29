@@ -379,7 +379,7 @@ declaration_method_visitor() {
 ${_type}  ${_function/${CLASS_NAME}/${CLASS_NAME}_fromStack}(${_args_without_self});
 ${_type} *${_function}(${_args_without_self});
 EOF
-	else
+	elif ${_public}; then
 		if ${_static}; then
 			echo "${_type} ${C_CLASS}_${_function}(${_args_without_self});"
 		else
@@ -455,6 +455,7 @@ inline ${C_PARENT} ${_function/${CLASS_NAME}/${CLASS_NAME}_fromStack}(${_args_wi
 	${C_CLASS}* self = alloca(sizeof(${C_CLASS}));
 	check(self != NULL, StackAllocationException, "self = alloca(%lu)", sizeof(${C_CLASS}));
 	_${C_CLASS}_init(self);
+	self->delete = self->finalize;
 	${CLASS_NAME}_new${_name}($(echo "${_args}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
 	return *((${C_PARENT}*)self);
 }

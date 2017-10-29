@@ -4,9 +4,9 @@
 @startuml
 !include Object.c
 interface aeten.concurrent.Condition {
-	await()
-	signal()
-	signalAll()
+	+ await()
+	+ signal()
+	+ signalAll()
 }
 @enduml
 */

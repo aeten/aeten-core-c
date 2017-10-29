@@ -5,9 +5,9 @@
 !include Iterable.c
 namespace aeten {
 	interface Collection<T> extends Iterable {
-		bool add(T* element) <<default>> <<optional>>
-		bool remove(T* element) <<default>> <<optional>>
-		size_t size()
+		+ bool add(T* element) <<default>> <<optional>>
+		+ bool remove(T* element) <<default>> <<optional>>
+		+ size_t size()
 	}
 	note right of Collection::add
 		Ensures that this collection contains the specified element (optional operation).

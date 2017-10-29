@@ -48,7 +48,7 @@ int main(int argc, char** argv) {
 	if (test->_self->result != 21) {
 		return 8;
 	}
-	Runnable_finalize(&stack_test);
+	Runnable_delete(&stack_test);
 	return 0;
 }
 

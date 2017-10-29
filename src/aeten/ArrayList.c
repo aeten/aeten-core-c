@@ -17,10 +17,10 @@ namespace aeten {
 		- element_size : size_t
 		- elements : void*
 
-		{static} + ArrayList(size_t initial_capacity, size_t element_size) <<constructor>>
-		bool add(T* element) <<override>>
-		removeAt(size_t position) <<override>>
-		set(size_t position, T* element) <<override>>
+		+ {static} ArrayList(size_t initial_capacity, size_t element_size) <<constructor>>
+		+ bool add(T* element) <<override>>
+		+ removeAt(size_t position) <<override>>
+		+ set(size_t position, T* element) <<override>>
 		# finalize() <<override>>
 	}
 	note right of ArrayList::ArrayList

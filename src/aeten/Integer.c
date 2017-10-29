@@ -9,9 +9,9 @@
 !include Number.c
 namespace aeten {
 	class Integer implements Number {
-		{static} + Integer(int value) <<constructor>>
-		{static} + fromNumber(Number* value) <<constructor>>
-		uint64_t hashCode() <<override>>
+		+ {static} Integer(int value) <<constructor>>
+		+ {static} fromNumber(Number* value) <<constructor>>
+		+ uint64_t hashCode() <<override>>
 		- value: int
 	}
 }

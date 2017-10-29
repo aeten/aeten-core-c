@@ -4,11 +4,11 @@
 @startuml
 namespace aeten {
 	interface Hash<T> {
-		uint64_t hash(T* value, unsigned bits) <<default>>
-		{static} uint32_t hash32(uint32_t value, unsigned bits)
-		{static} uint64_t hash64(uint64_t value, unsigned bits)
-		{static} uint64_t hashBuffer(char* ptr, size_t size, unsigned bits)
-		{static} uint64_t hashPointer(void* ptr, unsigned bits)
+		+ uint64_t hash(T* value, unsigned bits) <<default>>
+		+ {static} uint32_t hash32(uint32_t value, unsigned bits)
+		+ {static} uint64_t hash64(uint64_t value, unsigned bits)
+		+ {static} uint64_t hashBuffer(char* ptr, size_t size, unsigned bits)
+		+ {static} uint64_t hashPointer(void* ptr, unsigned bits)
 	}
 }
 @enduml
