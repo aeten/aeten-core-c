@@ -15,7 +15,7 @@ rule ld
 rule ar
     description = Link objects into ${out}
     depfile = ${out}.d
-    command = ${ar} rcs $$(out='${out}'; echo $${out%%.a}.o) $$(sed '1 d; s/\\$$//' ${out}.d)
+    command = ${ar} rcs ${out} $$(sed '1 d; s/\\$$//' ${out}.d)
 
 rule objdep
     description =  Genarate depfile for ${in}
