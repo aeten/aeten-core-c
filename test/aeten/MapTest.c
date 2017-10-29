@@ -51,11 +51,11 @@ int main(int argc, char** argv) {
 	return _counter;
 }
 
-void _new(MapTest *self, Map *map) {
+void MapTest_new(MapTest *self, Map *map) {
 	self->_map = map;
 }
 
-static bool _test(MapTest* self) {
+static bool MapTest_test(MapTest* self) {
 	Map *map = self->_map;
 	uint64_t number;
 	uint64_t *number_get;

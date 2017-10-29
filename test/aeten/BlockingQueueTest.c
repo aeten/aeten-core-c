@@ -49,10 +49,10 @@ namespace aeten {
 }
 
 
-void _new(BlockingQueueTest *self) {
+void BlockingQueueTest_new(BlockingQueueTest *self) {
 }
 
-bool _test(BlockingQueueTest *self) {
+bool BlockingQueueTest_test(BlockingQueueTest *self) {
 	int i, length=10;
 	BlockingQueue *queue = new_ArrayBlockingQueue(length);
 	queue_check_poll(false, -1);
@@ -86,5 +86,6 @@ int main(int argc, char** argv) {
 	Testable* test = new_BlockingQueueTest();
 	bool success = Testable_test(test);
 	Testable_test(test);
+	Testable_delete(test);
 	return (success? 0: -1);
 }

@@ -5,7 +5,7 @@ rule clean
 rule cc
     description = Compile ${in}
     depfile = ${out}.d
-    command = ${cc} -o ${out} -c ${cflags} -iquote ${generated}/$$(dirname ${in}) -iquote ${generated}/$$(dirname ${in}|sed 's,^${testdir}/,${srcdir}/,') -D$$(dirname ${in}|awk -F/ 'BEGIN{OFS="_"}{$$1="";print toupper($$0 "_'$$(basename ${out} .o)'_private")}') ${in}
+    command = ${cc} -o ${out} -c ${cflags} -iquote ${generated}/$$(dirname ${in}) -iquote ${generated}/$$(dirname ${in}|sed 's,^${testdir}/,${srcdir}/,') $$(for class in $$(sed -n '/@startuml/ {$$! {: begin; n; /@enduml/b end; /class\|interface/ {s,\s*\(class\|interface\)\s\+[a-z.]*\([^ \t<{]\+\)[{< ].*,\2,p}; b begin; : end } }' "${in}"); do echo -D$$(dirname ${in}|awk -F/ 'BEGIN{OFS="_"}{$$1="";print toupper($$0 "_'$${class}'_private")}'); done) ${in}
 
 rule ld
     description = Link objects into ${out}
@@ -27,7 +27,9 @@ rule objdep
             local _inc; $
             local _dir; $
             local _file; $
+            local _classes="$$(sed -n '/@startuml/ {$$! {: begin; n; /@enduml/b end; /class\|interface/ {s,\s*\(class\|interface\)\s\+[a-z.]*\([^ \t<{]\+\)[{< ].*,'$$(dirname "$${1}")'/\2,p}; b begin; : end } }' "$${1}")"; $
             for _inc in $$(sed -n 's/^!include \([^!]\+\)/\1/p; s/^#include\s\+"\([A-Z][^"]\+\)\.h"/\1.c/p' "$${1}"|sort -u); do $
+                echo "$${_classes}"|sed -n "s,^$$(dirname "$${1}")/$$(basename "$${_inc}" .c)$$,${generated}/\0.h,p"; $
                 for _dir in $$(echo ${srcdir} ${testdir} ${srcdir}/aeten ${testdir}/aeten $$(dirname $${1}) ${srcdir}/$${_srcdir##${testdir}/}|tr ' ' '\n'|sort -u); do $
                     _file="$${_dir}/$${_inc}"; $
                     [ -f $${_file} ] && [ $${_file} != $${1} ] || continue; $
@@ -42,7 +44,7 @@ rule objdep
 rule bindep
     description = Genarate depfile for ${in}
     depfile = ${out}
-    command = deps=$$(sed '1 s,.\+:\s*\\\?,,; s,\(^\|\s\)${generated}/,,g; s/\.[hc]\(\s*\\\?\)/.o\x0/g; s/[^ ]\+\/lang\.o\x0//g; s/[^ ]\+\.[^o]\x0//g; s,\(^\| \|\x0\([^\n]\)\),\n${output}/\2,g; s/\x0//; \,${out}\s*,d; /[^o]$$/d;' ${first}.d|sort -u) && ninja $$deps && echo "$$deps"|sed '1 s,^,${out}:,; 1 s,\.d:,:,; 1 ! s/^/ /; $$ ! s/$$/ \\/;' > ${out}
+    command = deps=$$(for _inc in $$(sed '1 s,.\+:\s*\\\?,,; s,\(^\|\s\)${generated}/,,g; s/\.[hc]\(\s*\\\?\)/.c\x0/g; s/[^ ]\+\/lang\.c\x0//g; s/[^ ]\+\.[^c]\x0//g; s,\(^\| \|\x0\([^\n]\)\),\n\2,g; s/\x0//; \,${out}\s*,d; /[^c]$$/d;' ${in}|sort -u); do [ -f $${_inc} ] && echo ${output}/$$(dirname $${_inc})/$$(basename $${_inc} .c).o; done) && ninja $$deps && echo "$$deps"|sed '1 s,^,${out}:,; 1 s,\.d:,: \n,; 1 ! s/^/ /; $$ ! s/$$/ \\/;' > ${out}
 
 rule libdep
     description = Genarate depfile ${out}
@@ -59,7 +61,7 @@ rule puml2cclass
 
 rule puml2xmi
     description = Convert UML class diagram '${in}' into XMI
-    command = ${java} -Djava.awt.headless=true ${pumlpath}:${generated}/$$(dirname ${first}):${generated}/$$(dirname ${first}|sed 's,^${testdir}/,${srcdir}/,') -jar ${puml} -o $$(realpath --relative-to=$$(dirname ${first}) $$(dirname ${out})) -failfast2 -txmi:star ${pumlflags} ${first} || { rm -f ${out}; false; }
+    command = ${java} -Djava.awt.headless=true ${pumlpath}:${generated}/$$(dirname ${in}):${generated}/$$(dirname ${in}|sed 's,^${testdir}/,${srcdir}/,') -jar ${puml} -o $$(realpath --relative-to=$$(dirname ${in}) $$(dirname ${out})) -failfast2 -txmi:star ${pumlflags} ${in} || { rm -f ${out}; false; }
 
 rule xmi2c
     description = Generate C file '${out}' from XMI '${in}'

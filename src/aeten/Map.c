@@ -29,12 +29,12 @@ namespace aeten {
 @enduml
 */
 
-void* _put(Map* map, void *key, void *value) {
+void* Map_put(Map* map, void *key, void *value) {
 	check(0, UnsupportedOperationException, "Map.put()");
 	return NULL;
 }
 
-void* _remove(Map* map, void *key) {
+void* Map_remove(Map* map, void *key) {
 	check(0, UnsupportedOperationException, "Map.remove()");
 	return NULL;
 }

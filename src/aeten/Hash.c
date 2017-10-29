@@ -23,24 +23,24 @@ namespace aeten {
 
 #if __SIZEOF_POINTER__ == 8
 #define GOLDEN_RATIO_PRIME GOLDEN_RATIO_PRIME_64
-#define hash_long(val, bits) _hash32(val, bits)
+#define hash_long(val, bits) Hash_hash32(val, bits)
 #else
 #define GOLDEN_RATIO_PRIME GOLDEN_RATIO_PRIME_32                                                                                       
-#define hash_long(val, bits) _hash64(val, bits)
+#define hash_long(val, bits) Hash_hash64(val, bits)
 #endif
 
-uint64_t _hash(Hash* hash, void *value, unsigned bits) {
-	return _hashPointer(value, bits);
+uint64_t Hash_hash(Hash* hash, void *value, unsigned bits) {
+	return Hash_hashPointer(value, bits);
 }
 
-uint32_t _hash32(uint32_t value, unsigned bits) {
+uint32_t Hash_hash32(uint32_t value, unsigned bits) {
 	/* On some cpus multiply is faster, on others gcc will do shifts */
 	uint32_t hash = value * GOLDEN_RATIO_PRIME_32;
 	/* High bits are more random, so use them. */
 	return hash >> (32 - bits);
 }
 
-uint64_t _hash64(uint64_t value, unsigned bits) {
+uint64_t Hash_hash64(uint64_t value, unsigned bits) {
 	uint64_t hash = value;
 
 	/*  Sigh, gcc can't optimise this alone like it does for 32 bits. */
@@ -62,12 +62,12 @@ uint64_t _hash64(uint64_t value, unsigned bits) {
 	return hash >> (64 - bits);
 }
 
-uint64_t _hashBuffer(char *buffer, size_t size, unsigned bits) {
+uint64_t Hash_hashBuffer(char *buffer, size_t size, unsigned bits) {
 	uint64_t hash;
 	if (size <= 32) {
-		hash = _hash32(*((uint32_t*)buffer), bits);
+		hash = Hash_hash32(*((uint32_t*)buffer), bits);
 	} else if (size <= 64) {
-		hash = _hash64(*((uint64_t*)buffer), bits);
+		hash = Hash_hash64(*((uint64_t*)buffer), bits);
 	} else {
 		hash = 0;
 		for(long i=0; i<size; ++i) {
@@ -77,7 +77,7 @@ uint64_t _hashBuffer(char *buffer, size_t size, unsigned bits) {
 	return hash;
 }
 
-uint64_t _hashPointer(void *ptr, unsigned bits) {
+uint64_t Hash_hashPointer(void *ptr, unsigned bits) {
 	return hash_long((uint64_t)ptr, bits);
 }
 

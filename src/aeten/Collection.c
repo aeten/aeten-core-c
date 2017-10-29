@@ -22,12 +22,12 @@ namespace aeten {
 @enduml
 */
 
-bool _add(Collection* collection, void *element) {
+bool Collection_add(Collection* collection, void *element) {
 	check(0, UnsupportedOperationException, "Collection.add(T* element)");
 	return false;
 }
 
-bool _remove(Collection* collection, void *element) {
+bool Collection_remove(Collection* collection, void *element) {
 	check(0, UnsupportedOperationException, "Collection.remove(T* element)");
 	return false;
 }

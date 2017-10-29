@@ -20,10 +20,10 @@ namespace aeten {
 @enduml
 */
 
-void _set(List* list, size_t position, void *element) {
+void List_set(List* list, size_t position, void *element) {
 	check(0, UnsupportedOperationException, "Last.set()");
 }
 
-void _removeAt(List* list, size_t position) {
+void List_removeAt(List* list, size_t position) {
 	check(0, UnsupportedOperationException, "List.removeAt()");
 }

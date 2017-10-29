@@ -18,7 +18,7 @@ namespace aeten {
 @enduml
 */
 
-bool _add(Set* self, void *element) {
+bool Set_add(Set* self, void *element) {
 	check(0, UnsupportedOperationException, "Set.add()");
 	return false;
 }

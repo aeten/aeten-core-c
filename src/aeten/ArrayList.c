@@ -30,7 +30,7 @@ namespace aeten {
 @enduml
 */
 
-void _new(ArrayList *self, size_t initial_capacity, size_t element_size) {
+void ArrayList_new(ArrayList *self, size_t initial_capacity, size_t element_size) {
 	if (initial_capacity>0) {
 		self->_elements = malloc(initial_capacity * element_size);
 		check(self->_elements != NULL, NoSuchMemoryError, "initial_capacity=%lu", initial_capacity);
@@ -42,19 +42,19 @@ void _new(ArrayList *self, size_t initial_capacity, size_t element_size) {
 	self->_size = 0;
 }
 
-void _finalize(ArrayList *self) {
+void ArrayList_finalize(ArrayList *self) {
 	if (self && self->_elements) {
 		free(self->_elements);
 		self->_elements = NULL;
 	}
 }
 
-void _set(ArrayList *self, size_t position, void *element) {
+void ArrayList_set(ArrayList *self, size_t position, void *element) {
 	check(position < self->_size, IndexOutOfBoundException, "position=%lu; array.length=%lu", position, self->_size);
 	memcpy(((char*)self->_elements) + (position * self->_element_size), element, self->_element_size);
 }
 
-void _removeAt(ArrayList *self, size_t position) {
+void ArrayList_removeAt(ArrayList *self, size_t position) {
 	check(position < self->_size, IndexOutOfBoundException, "position=%lu; array.length=%lu", position, self->_size);
 	void *dst = ((char*)self->_elements) + (position * self->_element_size);
 	if (position < (self->_size-1)) {
@@ -69,7 +69,7 @@ void _removeAt(ArrayList *self, size_t position) {
 }
 
 
-bool _add(ArrayList *self, void *element) {
+bool ArrayList_add(ArrayList *self, void *element) {
 	if (self->_capacity == self->_size) {
 		unsigned int capacity = ((self->_capacity * 3) / 2) + 1;
 		self->_elements = realloc(self->_elements, capacity * self->_element_size);
@@ -80,20 +80,19 @@ bool _add(ArrayList *self, void *element) {
 	return true;
 }
 
-void *_get(ArrayList *self, size_t position) {
+void *ArrayList_get(ArrayList *self, size_t position) {
 	check(position < self->_size, IndexOutOfBoundException, "position=%lu; array.length=%lu", position, self->_size);
 	return (void*)(((char*)self->_elements) + (position * self->_element_size));
 }
 
-size_t _size(ArrayList *self) {
+size_t ArrayList_size(ArrayList *self) {
 	return self->_size;
 }
 
-Iterator _iterator(ArrayList *self) {
+Iterator ArrayList_iterator(ArrayList *self) {
 	// TODO
 	check(0, NotImplementedOperationException, "ArrayList.iterator()");
 	Iterator iterator;
 	return iterator;
 }
-
 

@@ -36,7 +36,7 @@ namespace aeten.concurrent {
 static bool _queue_push(ArrayBlockingQueue* self, void *element, bool try_);
 static void *_queue_pop(ArrayBlockingQueue* self, bool try_);
 
-void _new(ArrayBlockingQueue* self, unsigned capacity) {
+void ArrayBlockingQueue_new(ArrayBlockingQueue* self, unsigned capacity) {
 	self->_array = malloc(capacity * sizeof(void*));
 	check(self->_array, HeapAllocationException, "Array(capacity=%u * size=%lu)", capacity, sizeof(void*));
 	self->_lock = new_ReentrantLock();
@@ -48,14 +48,14 @@ void _new(ArrayBlockingQueue* self, unsigned capacity) {
 	self->_tail = -1;
 }
 
-void _finalize(ArrayBlockingQueue* self) {
+void ArrayBlockingQueue_finalize(ArrayBlockingQueue* self) {
 	Lock_delete(self->_lock);
 	Condition_delete(self->_not_full);
 	Condition_delete(self->_not_empty);
 	free(self->_array);
 }
 
-size_t _size(ArrayBlockingQueue* self) {
+size_t ArrayBlockingQueue_size(ArrayBlockingQueue* self) {
 	size_t size;
 	Lock_lock(self->_lock);
 	size = self->_size;
@@ -64,15 +64,15 @@ size_t _size(ArrayBlockingQueue* self) {
 }
 
 
-static bool _offer(ArrayBlockingQueue* self, void *element) {
+bool ArrayBlockingQueue_offer(ArrayBlockingQueue* self, void *element) {
 	return _queue_push(self, element, true);
 }
 
-static void *_poll(ArrayBlockingQueue* self) {
+void *ArrayBlockingQueue_poll(ArrayBlockingQueue* self) {
 	return _queue_pop(self, true);
 }
 
-static void *_peek(ArrayBlockingQueue* self) {
+void *ArrayBlockingQueue_peek(ArrayBlockingQueue* self) {
 	void *element = NULL;
 	Lock_lock(self->_lock);
 	if (self->_size != 0) {
@@ -82,22 +82,22 @@ static void *_peek(ArrayBlockingQueue* self) {
 	return element;
 }
 
-static void _put(ArrayBlockingQueue* self, void *element) {
+void ArrayBlockingQueue_put(ArrayBlockingQueue* self, void *element) {
 	_queue_push(self, element, false);
 }
 
-static void *_take(ArrayBlockingQueue* self) {
+void *ArrayBlockingQueue_take(ArrayBlockingQueue* self) {
 	return _queue_pop(self, false);
 }
 
-Iterator _iterator(ArrayBlockingQueue *self) {
+Iterator ArrayBlockingQueue_iterator(ArrayBlockingQueue *self) {
 	// TODO
 	check(0, NotImplementedOperationException, "ArrayBlockingQueue.iterator()");
 	Iterator iterator;
 	return iterator;
 }
 
-static bool _queue_push(ArrayBlockingQueue* self, void *element, bool try_) {
+bool _queue_push(ArrayBlockingQueue* self, void *element, bool try_) {
 	Lock_lock(self->_lock);
 	int backup = self->_head++;
 	if (self->_head == self->_capacity) {
@@ -120,7 +120,7 @@ static bool _queue_push(ArrayBlockingQueue* self, void *element, bool try_) {
 	return true;
 }
 
-static void *_queue_pop(ArrayBlockingQueue* self, bool try_) {
+void *_queue_pop(ArrayBlockingQueue* self, bool try_) {
 	void *element = NULL;
 	Lock_lock(self->_lock);
 	int backup = self->_tail++;

@@ -9,7 +9,7 @@ namespace aeten {
 	interface Object<T> {
 		# finalize() <<default>>
 		+ delete() <<default>>
-		+ long hashCode() <<default>>
+		+ uint64_t hashCode() <<default>>
 		+ bool equals(void* other) <<default>>
 	}
 }
@@ -19,18 +19,18 @@ namespace aeten {
 
 #define DEFAULT_HASH_BITS 7
 
-void _finalize(Object* self) {}
-void _delete(Object* self) {
+void Object_finalize(Object* self) {}
+void Object_delete(Object* self) {
 	Object_finalize(self);
 	free(self);
 }
 
-bool _equals(Object *self, void *other) {
+bool Object_equals(Object *self, void *other) {
 	check(other!=NULL, NullPointerException, "Object.equals(other), other is null");
 	return self==other;
 }
 
-long _hashCode(Object *self) {
+uint64_t Object_hashCode(Object *self) {
 	return Hash_hashPointer(self, DEFAULT_HASH_BITS);
 }
 

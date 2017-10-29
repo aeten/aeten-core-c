@@ -52,7 +52,7 @@ int main(int argc, char** argv) {
 	return _counter;
 }
 
-void _new(ListTest* self, List* list) {
+void ListTest_new(ListTest* self, List* list) {
 	self->_list = list;
 }
 
@@ -79,7 +79,7 @@ static void catch_segv(bool iscatch) {
 	}
 }
 
-static bool _test(ListTest* self) {
+static bool ListTest_test(ListTest* self) {
 	List *list = self->_list;
 	int number;
 	int i;

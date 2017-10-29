@@ -408,12 +408,8 @@ import_method_visitor() {
 	local _cls
 	if ${_constructor}; then
 		cat - <<EOF
-#define ${_function/_${NAMESPACE//./_}/}           ${_function}
-#define ${_function/_${NAMESPACE//./_}/}_fromStack ${_function}_fromStack
-EOF
-	else
-		cat - <<EOF
-#define     ${CLASS_NAME}_${_function} ${C_CLASS}_${_function}
+#	define ${_function/_${NAMESPACE//./_}/}           ${_function}
+#	define ${_function/_${NAMESPACE//./_}/}_fromStack ${_function}_fromStack
 EOF
 	fi
 }
@@ -424,14 +420,14 @@ helper_method_visitor() {
 
 	if  ( ! ${_constructor} ); then
 		if ( [ ${CLASS_TYPE} = class ] && ( [ ${classtype} = interface ] && ( ! ${_default} ) ) || ( ${_override} && [ ${c_class} = ${C_CLASS} ] ) ) || ( [ ${c_class} = ${C_CLASS} ] && ${_default} ); then
-			echo "static ${_type} _${_name}(${_args/${c_class}\* self/${C_CLASS}* self});"
+			echo "static ${_type} ${CLASS_NAME}_${_name}(${_args/${c_class}\* self/${C_CLASS}* self});"
 		fi
 		if ( ! ${_override} ); then
 			if ${_static}; then
 				cat - <<EOF
-static inline ${_type} _${_name}(${_args_without_self});
+static inline ${_type} ${CLASS_NAME}_${_name}(${_args_without_self});
 ${_type} ${C_CLASS}_${_function}(${_args_without_self}) {
-	return _${_name}($(echo "${_args_without_self}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
+	return ${CLASS_NAME}_${_name}($(echo "${_args_without_self}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
 }
 
 EOF
@@ -447,19 +443,19 @@ EOF
 		fi
 	else
 		cat - <<EOF
-inline static void _new${_name}(${_args/${c_class}\* self/${C_CLASS}* self});
+inline static void ${CLASS_NAME}_new${_name}(${_args/${c_class}\* self/${C_CLASS}* self});
 ${C_PARENT}* ${_function}(${_args_without_self}) {
 	${C_CLASS}* self = malloc(sizeof(${C_CLASS}));
 	check(self != NULL, HeapAllocationException, "self = malloc(%lu)", sizeof(${C_CLASS}));
 	_${C_CLASS}_init(self);
-	_new${_name}($(echo "${_args}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
+	${CLASS_NAME}_new${_name}($(echo "${_args}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
 	return (${C_PARENT}*)self;
 }
 inline ${C_PARENT} ${_function/${CLASS_NAME}/${CLASS_NAME}_fromStack}(${_args_without_self}) {
 	${C_CLASS}* self = alloca(sizeof(${C_CLASS}));
 	check(self != NULL, StackAllocationException, "self = alloca(%lu)", sizeof(${C_CLASS}));
 	_${C_CLASS}_init(self);
-	_new${_name}($(echo "${_args}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
+	${CLASS_NAME}_new${_name}($(echo "${_args}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
 	return *((${C_PARENT}*)self);
 }
 
@@ -470,7 +466,7 @@ ${C_PARENT}_Array* ${_function/new_/newArrayOf_}(${_args/${c_class}* self/size_t
 	array->size = sizeof(${C_CLASS});
 	for (size_t i=0; i<_length; ++i) {
 		_${C_CLASS}_init(&array->values[i]);
-		_new${_name}($(echo "${_args/self/&array->values[i]}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
+		${CLASS_NAME}_new${_name}($(echo "${_args/self/&array->values[i]}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
 	}
 	return (${C_PARENT}_Array*)array;
 }
@@ -482,7 +478,7 @@ EOF
 interface_init_method_visitor() {
 	eval "${method_visitor_init}"
 	if ( ! ${_constructor} ) && ${_default} && [ ${c_class} = ${C_CLASS} ] && [ ${CLASS_TYPE} = interface ]; then
-		echo -e "\tself->${_name} = _${_name};"
+		echo -e "\tself->${_name} = ${CLASS_NAME}_${_name};"
 	fi
 }
 
@@ -709,8 +705,40 @@ $(visit_class c_private ${CLASS})
 #endif // ${c_class^^}_H
 
 #if defined(import) || defined(_${C_CLASS^^}_PRIVATE)
-#define ${CLASS_NAME} ${C_CLASS}
-#define ${CLASS_NAME}_Array ${C_CLASS}_Array
+#	define ${CLASS_NAME} ${C_CLASS}
+#	define ${CLASS_NAME}_Array ${C_CLASS}_Array
+#endif
+EOF
+	if [ ${classtype} = class ]; then
+		echo "#if defined(import) || defined(_${C_CLASS^^}_PRIVATE)"
+	else
+		echo "#if defined(import)"
+	fi
+	_methods=$(for _cls in ${CLASS_HIERARCHY}; do
+		visit_class constructor_definition ${_cls}
+	done)
+
+	for _method_name in ${_methods}; do
+		[ ${_method_name/:default/} != ${_method_name} ] && _default_methods+=$(echo "${_method_name/:*/}\n")
+		[ ${_method_name/:override/} != ${_method_name} ] && _override_methods+=$(echo "${_method_name/:*/}\n")
+	done
+	_methods=${_methods//:default/}
+	_methods=${_methods//:override/}
+	_methods=$(echo -e "${_methods}"|sort -u)
+	if [ ${classtype} = class ]; then
+		echo "#	ifndef _${C_CLASS^^}_PRIVATE"
+	fi
+	for _method_name in $({ echo -e "${_override_methods}"; comm -13 --nocheck-order <(echo -e "${_default_methods}"|sort -u) <(echo -e "${_methods}"|sort -u); }|sort -u); do
+		echo "#		define ${CLASS_NAME}_${_method_name} ${C_CLASS}_${_method_name}"
+	done
+	if [ ${classtype} = class ]; then
+		echo "#	endif"
+	fi
+	for _method_name in $({ comm -13 --nocheck-order <(echo -e "${_override_methods}"|sort -u) <(echo -e "${_default_methods}"|sort -u); }|sort -u); do
+		echo "#	define ${CLASS_NAME}_${_method_name} ${C_CLASS}_${_method_name}"
+	done
+
+	cat - <<EOF
 $(for _cls in ${CLASS_HIERARCHY}; do
 	visit_class import_methods ${_cls}
 done)
@@ -764,7 +792,7 @@ EOF
 		_methods=${_methods//:default/}
 		_methods=${_methods//:override/}
 		for _method_name in $({ echo -e "${_override_methods}"; comm -13 --nocheck-order <(echo -e "${_default_methods}"|sort -u) <(echo -e "${_methods}"|sort -u); }|sort -u); do
-			echo -e "\tself->${_method_name} = _${_method_name};"
+			echo -e "\tself->${_method_name} = ${CLASS_NAME}_${_method_name};"
 		done
 	fi
 	cat - <<EOF

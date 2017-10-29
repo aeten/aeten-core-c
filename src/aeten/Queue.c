@@ -14,7 +14,7 @@ namespace aeten {
 @enduml
 */
 
-bool _add(Queue* queue, void* element) {
-	return Queue_offer(queue, element);
+bool Queue_add(Queue* queue, void* element) {
+	return aeten_Queue_offer(queue, element);
 }
 
