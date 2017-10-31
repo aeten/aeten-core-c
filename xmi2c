@@ -253,6 +253,11 @@ attributes_visitor_init='
 	else
 		_final=false
 	fi
+	if [ "${_stereotypes/*volatile*/volatile}" = volatile ]; then
+		_volatile="volatile "
+	else
+		_volatile=
+	fi
 '
 
 full_qualified_type() {
@@ -269,7 +274,7 @@ full_qualified_type() {
 	if [ -z "${_type}" ]; then
 		return
 	fi
-	_class_to_resolve=$(echo "${_type}"|sed 's/[^a-ZA-Z0-9^_]*\([a-ZA-Z0-9_]\+\)[^a-ZA-Z0-9^_]*/\1/')
+	_class_to_resolve=$(echo "${_type}"|sed 's/[^a-zA-Z0-9^_]*\([a-zA-Z0-9_]\+\)[^a-zA-Z0-9^_]*/\1/')
 	for _parametrized_type in $(echo -e "${_parametrized_types// /\\n}"); do
 		if [ ${_class_to_resolve} = ${_parametrized_type/:*/} ]; then
 			_class_to_resolve=${_parametrized_type/*:/}
@@ -343,7 +348,7 @@ object_declaration_attribute_visitor() {
 				echo -e "\tconst ${_type} ${_name};"
 			fi
 		else
-			echo -e "\t${_type} ${_name};"
+			echo -e "\t${_volatile}${_type} ${_name};"
 		fi
 	}
 }
@@ -358,7 +363,7 @@ static_declaration_attribute_visitor() {
 				echo "static const ${_type} ${_name};"
 			fi
 		else
-			echo "static ${_type} ${_name};"
+			echo "static ${_volatile}${_type} ${_name};"
 		fi
 	fi
 }
