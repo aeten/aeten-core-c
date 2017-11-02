@@ -64,6 +64,7 @@ EOF
 : ${LD:=gcc}
 : ${AR:=ar}
 : ${JAVA:=java}
+: ${JAVA_SYSTEM_CLASSPATH:=/usr/share/java/*}
 : ${NINJA:=${PROJECT_NAME}.ninja}
 : ${PLANTUML:=cots/plantuml/plantuml.jar}
 SRC=$(readlink -m "${CURDIR}/${SRC}")
@@ -157,6 +158,7 @@ ipath     = ${IQUOTES}
 src       = $(echo ${SRC}|tr ' ' ':')
 srcdir    = ${SRC_DIR}
 testdir   = ${TEST}
+classpath = ${JAVA_SYSTEM_CLASSPATH}
 
 include default-rules.ninja
 include default-targets.ninja
@@ -175,12 +177,14 @@ $([ -f "${NINJA}" ] && echo include "${NINJA}")
 $(for _src in $(find ${SRC} -name \*.c); do
 	_classes=$(sed -n '/@startuml/ {$! {: begin; n; /@enduml/b end; /class\|interface/ {s,\s*\(class\|interface\)\s\+[a-z.]*\([^ \t<{]\+\)[{< ].*,\2,p}; b begin; : end } }' "${_src}")
 
-	inform "Building target for puml2xmi command from ${_src}" >&2
-	${target} --command puml2xmi --depends ${_src} "$(echo "${_classes}"|sed 's,^.*,${output}/'$(dirname ${_src})/'\0.xmi,'|tr '\n' ' ')"
+	inform "Building target puml2x commands from ${_src}" >&2
+	for _ext in xmi pdf png; do
+		${target} --command puml2x --depends ${_src} "$(echo "${_classes}"|sed 's,^.*,${output}/'$(dirname ${_src})/'\0.'${_ext}','|tr '\n' ' ')"
+	done
 
 	for _class in ${_classes}; do
 		_xmi="\${output}/$(dirname ${_src})/${_class}.xmi"
-		inform "Building target for xmi2c command from ${_xmi}" >&2
+		inform "Building target xmi2c command from ${_xmi}" >&2
 		${target} --command xmi2c --depends ${_xmi} '${generated}/'$(dirname ${_src})/${_class}.h
 	done
 

@@ -59,9 +59,10 @@ rule puml2cclass
     description = Include UML '${in}' in a c class file '${out}'
     command = printf '#include "%s"\n\n/*!\n%s\n*/\n' "$$(basename ${in} .puml).h" "$$(cat "${in}")" > "${out}"
 
-rule puml2xmi
-    description = Convert UML class diagram '${in}' into XMI
-    command = ${java} -Djava.awt.headless=true ${pumlpath}:${generated}/$$(dirname ${in}):${generated}/$$(dirname ${in}|sed 's,^${testdir}/,${srcdir}/,') -jar ${puml} -o $$(realpath --relative-to=$$(dirname ${in}) $$(dirname ${out})) -failfast2 -txmi:star ${pumlflags} ${in} || { rm -f ${out}; false; }
+rule puml2x
+    description = Convert UML class diagram '${in}' into '${out}'
+    command = ext='${out}'; ext="$${ext##*.}"; [ xmi = "$${ext}" ] && ext=xmi:star; ${java} -cp '${puml}:${classpath}' -Djava.awt.headless=true ${pumlpath}:${generated}/$$(dirname ${in}):${generated}/$$(dirname ${in}|sed 's,^${testdir}/,${srcdir}/,') net.sourceforge.plantuml.Run -o $$(realpath --relative-to=$$(dirname ${in}) $$(dirname ${out})) -Sshadowing=false -failfast2 -t$${ext} ${pumlflags} ${in} || { rm -f ${out}; false; }
+
 
 rule xmi2c
     description = Generate C file '${out}' from XMI '${in}'
