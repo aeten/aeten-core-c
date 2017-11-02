@@ -451,14 +451,14 @@ EOF
 inline static void ${CLASS_NAME}_new${_name}(${_args/${c_class}\* self/${C_CLASS}* self});
 ${C_PARENT}* ${_function}(${_args_without_self}) {
 	${C_CLASS}* self = malloc(sizeof(${C_CLASS}));
-	check(self != NULL, HeapAllocationException, "self = malloc(%lu)", sizeof(${C_CLASS}));
+	check(self != NULL, HeapAllocationException, "self = malloc(%zu)", sizeof(${C_CLASS}));
 	_${C_CLASS}_init(self);
 	${CLASS_NAME}_new${_name}($(echo "${_args}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
 	return (${C_PARENT}*)self;
 }
 inline ${C_PARENT} ${_function/${CLASS_NAME}/${CLASS_NAME}_fromStack}(${_args_without_self}) {
 	${C_CLASS}* self = alloca(sizeof(${C_CLASS}));
-	check(self != NULL, StackAllocationException, "self = alloca(%lu)", sizeof(${C_CLASS}));
+	check(self != NULL, StackAllocationException, "self = alloca(%zu)", sizeof(${C_CLASS}));
 	_${C_CLASS}_init(self);
 	self->delete = self->finalize;
 	${CLASS_NAME}_new${_name}($(echo "${_args}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
@@ -467,7 +467,7 @@ inline ${C_PARENT} ${_function/${CLASS_NAME}/${CLASS_NAME}_fromStack}(${_args_wi
 
 ${C_PARENT}_Array* ${_function/new_/newArrayOf_}(${_args/${c_class}* self/size_t _length}) {
 	${C_CLASS}_Array* array = malloc(sizeof(${C_PARENT}_Array) + (_length * (sizeof(${C_CLASS}*)+sizeof(${C_CLASS}))));
-	check(array != NULL, HeapAllocationException, "array = malloc(%lu+%lu*%lu)", sizeof(${C_CLASS}_Array), _length, sizeof(${C_CLASS}));
+	check(array != NULL, HeapAllocationException, "array = malloc(%zu+%zu*%zu)", sizeof(${C_CLASS}_Array), _length, sizeof(${C_CLASS}));
 	array->length = _length;
 	array->size = sizeof(${C_CLASS});
 	for (size_t i=0; i<_length; ++i) {

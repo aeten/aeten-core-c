@@ -33,7 +33,7 @@ namespace aeten {
 void ArrayList_new(ArrayList *self, size_t initial_capacity, size_t element_size) {
 	if (initial_capacity>0) {
 		self->_elements = malloc(initial_capacity * element_size);
-		check(self->_elements != NULL, NoSuchMemoryError, "initial_capacity=%lu", initial_capacity);
+		check(self->_elements != NULL, NoSuchMemoryError, "initial_capacity=%zu", initial_capacity);
 	} else {
 		self->_elements = NULL;
 	}
@@ -50,12 +50,12 @@ void ArrayList_finalize(ArrayList *self) {
 }
 
 void ArrayList_set(ArrayList *self, size_t position, void *element) {
-	check(position < self->_size, IndexOutOfBoundException, "position=%lu; array.length=%lu", position, self->_size);
+	check(position < self->_size, IndexOutOfBoundException, "position=%zu; array.length=%zu", position, self->_size);
 	memcpy(((char*)self->_elements) + (position * self->_element_size), element, self->_element_size);
 }
 
 void ArrayList_removeAt(ArrayList *self, size_t position) {
-	check(position < self->_size, IndexOutOfBoundException, "position=%lu; array.length=%lu", position, self->_size);
+	check(position < self->_size, IndexOutOfBoundException, "position=%zu; array.length=%zu", position, self->_size);
 	void *dst = ((char*)self->_elements) + (position * self->_element_size);
 	if (position < (self->_size-1)) {
 		void *src = ((char*)self->_elements) + ((1 + position) * self->_element_size);
@@ -81,7 +81,7 @@ bool ArrayList_add(ArrayList *self, void *element) {
 }
 
 void *ArrayList_get(ArrayList *self, size_t position) {
-	check(position < self->_size, IndexOutOfBoundException, "position=%lu; array.length=%lu", position, self->_size);
+	check(position < self->_size, IndexOutOfBoundException, "position=%zu; array.length=%zu", position, self->_size);
 	return (void*)(((char*)self->_elements) + (position * self->_element_size));
 }
 

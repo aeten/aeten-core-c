@@ -38,7 +38,7 @@ static void *_queue_pop(ArrayBlockingQueue* self, bool try_);
 
 void ArrayBlockingQueue_new(ArrayBlockingQueue* self, unsigned capacity) {
 	self->_array = malloc(capacity * sizeof(void*));
-	check(self->_array, HeapAllocationException, "Array(capacity=%u * size=%lu)", capacity, sizeof(void*));
+	check(self->_array, HeapAllocationException, "Array(capacity=%u * size=%zu)", capacity, sizeof(void*));
 	self->_lock = new_ReentrantLock();
 	self->_not_full = Lock_newCondition(self->_lock);
 	self->_not_empty = Lock_newCondition(self->_lock);
