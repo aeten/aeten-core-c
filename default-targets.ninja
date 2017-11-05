@@ -1,18 +1,20 @@
 build clean: clean ${output}
-build lib: phony | ${output}/${project}-${version}.so ${output}/${project}-${version}.a
-build exe: phony | ${output}/${project}-${version}
+build lib: phony | ${output}/${triplet}/lib${project}-${version}.so ${output}/${triplet}/lib${project}-${version}.a
+build exe: phony | ${output}/${triplet}/${project}-${version}
 build library: phony | lib
 build executable: phony | exe
+build binary: phony | ${binary}
+build install: install | binary
 
-build ${output}/${project}-${version}.d: libdep
+build ${output}/${triplet}/${project}-${version}.d: libdep
     libname = ${project}-${version}
-build ${output}/${project}-${version}.so.d: libdep
-    libname = ${project}-${version}
-build ${output}/${project}-${version}.a.d: libdep
-    libname = ${project}-${version}
-build ${output}/${project}-${version}: ld | ${output}/${project}-${version}.d
+build ${output}/${triplet}/lib${project}-${version}.so.d: libdep
+    libname = lib${project}-${version}
+build ${output}/${triplet}/lib${project}-${version}.a.d: libdep
+    libname = lib${project}-${version}
+build ${output}/${triplet}/${project}-${version}: ld | ${output}/${triplet}/${project}-${version}.d
+    ldflags = ${ldflags}
+build ${output}/${triplet}/lib${project}-${version}.so: ld | ${output}/${triplet}/lib${project}-${version}.so.d
     ldflags = ${ldflags} -shared
-build ${output}/${project}-${version}.so: ld | ${output}/${project}-${version}.so.d
-    ldflags = ${ldflags} -shared
-build ${output}/${project}-${version}.a: ar | ${output}/${project}-${version}.a.d
+build ${output}/${triplet}/lib${project}-${version}.a: ar | ${output}/${triplet}/lib${project}-${version}.a.d
 

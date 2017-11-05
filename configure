@@ -43,6 +43,7 @@ object-model|m <model>: The object model generation mode, _simple_ support only 
 cc <cc-exec-file>: The C compiler executable file path, _gcc_ by default.
 ld <ld-exec-file>: The linker executable file path, _gcc_ by default.
 ar <ar-exec-file>: The archive executable file path, _ar_ by default.
+triplet <triplet>: The compilation target\\[u0027]s normalized GNU triplet (deducted by \\\`cc -print-multiarch\\\` by default).
 ninja <file>: The Ninja build project file to include
 warning <list>: The warning flags to activate, _all_ and _error_ by default.
 verbose: Verbose build output.
@@ -63,6 +64,7 @@ EOF
 : ${CC:=gcc}
 : ${LD:=gcc}
 : ${AR:=ar}
+: ${TRIPLET:=$(${CC} -print-multiarch)}
 : ${JAVA:=java}
 : ${JAVA_SYSTEM_CLASSPATH:=/usr/share/java/*}
 : ${NINJA:=${PROJECT_NAME}.ninja}
@@ -153,21 +155,23 @@ puml      = ${PLANTUML}
 pumlpath  = ${PUML_PATH}
 pumlflags = ${PUML_FLAGS}
 output    = ${OUT}
-generated = ${GEN_DIR}
-ipath     = ${IQUOTES}
-src       = $(echo ${SRC}|tr ' ' ':')
 srcdir    = ${SRC_DIR}
+generated = ${GEN_DIR}
+prefix    = ${PREFIX}
+triplet   = ${TRIPLET}
+ipath     = ${IQUOTES}
+binary    = ${BINARY}
+src       = $(echo ${SRC}|tr ' ' ':')
 testdir   = ${TEST}
 classpath = ${JAVA_SYSTEM_CLASSPATH}
 
 include default-rules.ninja
 include default-targets.ninja
-default ${BINARY}
+default \${binary}
 
-build deps: phony || $(echo \${output}/\${project}-\${version}{.d,.a.d,.so.d}) $(for src in $(find ${SRC} ${TEST} -name \*.c); do
-	echo -n " \${output}/${src%%.c}.o.d"
+build deps: phony || \${output}/\${triplet}/\${project}-\${version}.d $(echo \${output}/\${triplet}/lib\${project}-\${version}{.a.d,.so.d}) $(for src in $(find ${SRC} ${TEST} -name \*.c); do
+	echo -n " \${output}/\${triplet}/${src%%.c}.o.d"
 done)
-
 
 build test: phony || $(for src in $(find ${TEST} -name \*.c); do
    echo run-$(basename ${src//_/-} .c)
@@ -179,17 +183,17 @@ $(for _src in $(find ${SRC} -name \*.c); do
 
 	inform "Building target puml2x commands from ${_src}" >&2
 	for _ext in xmi pdf png; do
-		${target} --command puml2x --depends ${_src} "$(echo "${_classes}"|sed 's,^.*,${output}/'$(dirname ${_src})/'\0.'${_ext}','|tr '\n' ' ')"
+		${target} --command puml2x --depends ${_src} "$(echo "${_classes}"|sed 's,^.*,${output}/all/'$(dirname ${_src})/'\0.'${_ext}','|tr '\n' ' ')"
 	done
 
 	for _class in ${_classes}; do
-		_xmi="\${output}/$(dirname ${_src})/${_class}.xmi"
+		_xmi="\${output}/all/$(dirname ${_src})/${_class}.xmi"
 		inform "Building target xmi2c command from ${_xmi}" >&2
 		${target} --command xmi2c --depends ${_xmi} '${generated}/'$(dirname ${_src})/${_class}.h
 	done
 
 	inform "Building target cc from ${_src}" >&2
-	_out='${output}/'$(${replace_suffix} .c .o ${_src})
+	_out='${output}/${triplet}/'$(${replace_suffix} .c .o ${_src})
 	${target} --command objdep --depends ${_src} ${_out}.d
 	${target} --command cc --depends ${_src} --depends "| ${_out}.d" ${_out}
 done
@@ -199,14 +203,14 @@ for _src in $(find ${TEST} -name \*.c); do
 	depedencies="$(${replace_suffix} .c .o ${_src}) "
 
 	inform "Building target bindep from ${_src}" >&2
-	${target} --command bindep --depends '${output}/'$(${replace_suffix} .c .o.d ${_src}) '${output}/'"${TEST}/${executable}.d"
+	${target} --command bindep --depends '${output}/${triplet}'$(${replace_suffix} .c .o.d ${_src}) '${output}/all/'"${TEST}/${executable}.d"
 
 	inform "Building target ld from ${_src}" >&2
 	_out='${output}/'"${TEST}/${executable}"
-	${target} --command ld --depends '${output}/'$(${replace_suffix} .c .o ${_src}) --depends '| '${_out}.d "${_out}"
+	${target} --command ld --depends '${output}/${triplet}/'$(${replace_suffix} .c .o ${_src}) --depends '| '${_out}.d "${_out}"
 
 	inform "Building target run from ${_src}" >&2
-	${target} --command run --depends '${output}/'"${TEST}/${executable}" run-${executable}
+	${target} --command run --depends '${output}/${triplet}/'"${TEST}/${executable}" run-${executable}
 done)
 
 EOF

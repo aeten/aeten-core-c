@@ -10,7 +10,7 @@ rule cc
 rule ld
     description = Link objects into ${out}
     depfile = ${out}.d
-    command = ${ld} -o ${out} ${ldflags} $$(sed '1 d; s/\\$$//' ${out}.d)
+    command = _out='${out}'; ${ld} -o '${out}' ${ldflags} $$(sed '1 d; s/\\$$//' ${out}.d) && [ "$${_out##*.}" = so ] && chmod -x '${out}'
 
 rule ar
     description = Link objects into ${out}
@@ -44,16 +44,20 @@ rule objdep
 rule bindep
     description = Genarate depfile for ${in}
     depfile = ${out}
-    command = deps=$$(for _inc in $$(sed '1 s,.\+:\s*\\\?,,; s,\(^\|\s\)${generated}/,,g; s/\.[hc]\(\s*\\\?\)/.c\x0/g; s/[^ ]\+\/lang\.c\x0//g; s/[^ ]\+\.[^c]\x0//g; s,\(^\| \|\x0\([^\n]\)\),\n\2,g; s/\x0//; \,${out}\s*,d; /[^c]$$/d;' ${in}|sort -u); do [ -f $${_inc} ] && echo ${output}/$$(dirname $${_inc})/$$(basename $${_inc} .c).o; done) && ninja $$deps && echo "$$deps"|sed '1 s,^,${out}:,; 1 s,\.d:,: \n,; 1 ! s/^/ /; $$ ! s/$$/ \\/;' > ${out}
+    command = deps=$$(for _inc in $$(sed '1 s,.\+:\s*\\\?,,; s,\(^\|\s\)${generated}/,,g; s/\.[hc]\(\s*\\\?\)/.c\x0/g; s/[^ ]\+\/lang\.c\x0//g; s/[^ ]\+\.[^c]\x0//g; s,\(^\| \|\x0\([^\n]\)\),\n\2,g; s/\x0//; \,${out}/${triplet}\s*,d; /[^c]$$/d;' ${in}|sort -u); do [ -f $${_inc} ] && echo ${output}/${triplet}/$$(dirname $${_inc})/$$(basename $${_inc} .c).o; done) && ninja $$deps && echo "$$deps"|sed '1 s,^,${out}/${triplet}:,; 1 s,\.d:,: \n,; 1 ! s/^/ /; $$ ! s/$$/ \\/;' > ${out}
 
 rule libdep
     description = Genarate depfile ${out}
-    depfile = ${output}/${libname}.d
-    command = for src in $$(find ${srcdir} -name \*.c); do echo " ${output}/$${src%%.c}.o"; done|sed '1 s,^,${output}/${libname}: \\\n,; $$ ! s/$$/ \\/' > ${output}/${libname}.d && sed '1 s,${output}/${libname}:,${output}/${libname}.so:,' ${output}/${libname}.d > ${output}/${libname}.so.d && sed '1 s,${output}/${libname}:,${output}/${libname}.a:,' ${output}/${libname}.d > ${output}/${libname}.a.d
+    depfile = ${output}/${triplet}/${libname}.d
+    command = for src in $$(find ${srcdir} -name \*.c); do echo " ${output}/${triplet}/$${src%%.c}.o"; done|sed '1 s,^,${output}/${triplet}/${libname}: \\\n,; $$ ! s/$$/ \\/' > ${output}/${triplet}/${libname}.d && sed '1 s,${output}/${triplet}/${libname}:,${output}/${triplet}/${libname}.so:,' ${output}/${triplet}/${libname}.d > ${output}/${triplet}/${libname}.so.d && sed '1 s,${output}/${triplet}/${libname}:,${output}/${triplet}/${libname}.a:,' ${output}/${triplet}/${libname}.d > ${output}/${triplet}/${libname}.a.d
 
 rule run
     description = Run '${in}'
     command = ./${in} ${args}
+
+rule install
+    description = Install in ${prefix}
+    command = cp -a ${generated}/${srcdir}/* ${prefix}/include/ && mkdir --parents ${prefix}/lib/${triplet} && find ${output}/${triplet} -maxdepth 1 -type f \( -name \*.a -o -name \*.so \) -exec cp {} ${prefix}/lib/${triplet}/ \; && find ${output}/${triplet} -maxdepth 1 -type f -not -name \*.so -a -executable -exec cp {} ${prefix}/bin \; && find ${srcdir} -name \*.h -exec sh -c "header='{}'; cp \"\$${header}\" \"${prefix}/include/\$${header#${srcdir}/}\"" \;
 
 rule puml2cclass
     description = Include UML '${in}' in a c class file '${out}'
@@ -62,7 +66,6 @@ rule puml2cclass
 rule puml2x
     description = Convert UML class diagram '${in}' into '${out}'
     command = ext='${out}'; ext="$${ext##*.}"; [ xmi = "$${ext}" ] && ext=xmi:star; ${java} -cp '${puml}:${classpath}' -Djava.awt.headless=true ${pumlpath}:${generated}/$$(dirname ${in}):${generated}/$$(dirname ${in}|sed 's,^${testdir}/,${srcdir}/,') net.sourceforge.plantuml.Run -o $$(realpath --relative-to=$$(dirname ${in}) $$(dirname ${out})) -Sshadowing=false -failfast2 -t$${ext} ${pumlflags} ${in} || { rm -f ${out}; false; }
-
 
 rule xmi2c
     description = Generate C file '${out}' from XMI '${in}'
