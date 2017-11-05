@@ -6,7 +6,7 @@
 #include "aeten/concurrent/posix/PThread.h"
  
 #define import
-#include "Runnable.h"
+#include "Callable.h"
 #include "aeten/concurrent/Lock.h"
 #include "aeten/concurrent/Condition.h"
 #include "aeten/concurrent/posix/ReentrantLock.h"
@@ -14,23 +14,22 @@
 /*!
 @startuml
 !include Object.c
-!include Runnable.c
+!include Callable.c
 !include aeten/concurrent/Thread.c
 !include aeten/concurrent/Lock.c
 namespace aeten.concurrent.posix {
-	class PThread implements aeten.concurrent.Thread {
-		+ {static} PThread(char *name, Runnable *task, bool loop) <<constructor>>
-		+ {static} withPriorityAndAffinity(char *name, Runnable *task, bool loop, int priority, int scheduler, int cpu_affinity, bool detached) <<constructor>>
-		+ {static} withAttr(char *name, Runnable *task, bool loop, pthread_attr_t *attr) <<constructor>>
+	class PThread<T> implements aeten.concurrent.Thread {
+		+ {static} PThread(char *name, Callable *task, bool loop) <<constructor>>
+		+ {static} withPriorityAndAffinity(char *name, Callable *task, bool loop, int priority, int scheduler, int cpu_affinity, bool detached) <<constructor>>
+		+ {static} withAttr(char *name, Callable *task, bool loop, pthread_attr_t *attr) <<constructor>>
 		- name: char*
 		- thread: pthread_t
 		- attr: pthread_attr_t
 		- lock: Lock*
 		- started: Condition*
 		- stopped: Condition*
-		- task: Runnable*
+		- task: Callable*
 		- run: bool <<volatile>>
-		- loop: bool
 		- running: bool
 	}
 }
@@ -40,13 +39,13 @@ namespace aeten.concurrent.posix {
 static void* thread_task(void* arg);
 static inline void set_cpu_affinity(PThread *self, char *name, pthread_attr_t *attr, int cpu_affinity);
 
-void PThread_new(PThread *self, char *name, Runnable *task, bool loop) {
+void PThread_new(PThread *self, char *name, Callable *task, bool loop) {
 	pthread_attr_t attr;
 	check(pthread_attr_init(&attr) == 0, PThreadException, "Unable to init attributes for thread %s", name);
 	PThread_new_withAttr(self, name, task, loop, &attr);
 }
 
-void PThread_new_withPriorityAndAffinity(PThread *self, char *name, Runnable *task, bool loop, int priority, int scheduler, int cpu_affinity, bool detached) {
+void PThread_new_withPriorityAndAffinity(PThread *self, char *name, Callable *task, bool loop, int priority, int scheduler, int cpu_affinity, bool detached) {
 	pthread_attr_t attr;
 	struct sched_param sched;
 	check(pthread_attr_init(&attr) == 0, PThreadException, "Unable to init attributes for thread %s", name);
@@ -57,10 +56,11 @@ void PThread_new_withPriorityAndAffinity(PThread *self, char *name, Runnable *ta
 	PThread_new_withAttr(self, name, task, loop, &attr);
 }
 
-void PThread_new_withAttr(PThread *self, char *name, Runnable *task, bool loop, pthread_attr_t *attr) {
+void PThread_new_withAttr(PThread *self, char *name, Callable *task, bool loop, pthread_attr_t *attr) {
 	self->_attr = *attr;
 	self->_name = strdup(name);
 	self->_task = task;
+	self->_run = loop;
 	self->_lock = new_ReentrantLock();
 	self->_started = Lock_newCondition(self->_lock);
 	self->_stopped = Lock_newCondition(self->_lock);
@@ -68,7 +68,6 @@ void PThread_new_withAttr(PThread *self, char *name, Runnable *task, bool loop, 
 
 void PThread_start(PThread *self) {
 	Lock_lock(self->_lock);
-	self->_run = true;
 	check(pthread_create(&self->_thread, &self->_attr, &thread_task, self) != 0, PThreadException, "Unable to create thread %s", self->_name);
 	Lock_unlock(self->_lock);
 }
@@ -77,13 +76,15 @@ void PThread_stop(PThread *self) {
 	self->_run = false;
 }
 
-void PThread_join(PThread *self) {
+void *PThread_join(PThread *self) {
 	void *retval;
 	pthread_join(self->_thread, &retval);
+	return retval;
 }
 
 void *thread_task(void* arg) {
 	PThread *self = (PThread*)arg;
+	void *retval;
 	check(pthread_setname_np(self->_thread, self->_name) != 0, PThreadException, "Unable to rename thread to %s", self->_name);
 	do {
 		Lock_lock(self->_lock);
@@ -92,9 +93,13 @@ void *thread_task(void* arg) {
 			Condition_signalAll(self->_started);
 		}
 		Lock_unlock(self->_lock);
-		Runnable_run(self->_task);
+		retval = Callable_call(self->_task);
 	} while(self->_run);
-	return NULL;
+	Lock_lock(self->_lock);
+	self->_running = false;
+	Condition_signalAll(self->_stopped);
+	Lock_unlock(self->_lock);
+	return retval;
 }
 
 void set_cpu_affinity(PThread *self, char *name, pthread_attr_t *attr, int cpu_affinity) {

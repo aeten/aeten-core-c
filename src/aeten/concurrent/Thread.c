@@ -4,10 +4,10 @@
 @startuml
 !include Object.c
 namespace aeten.concurrent {
-	interface Thread {
+	interface Thread<T> {
 		+ start()
 		+ stop()
-		+ join()
+		+ T* join()
 	}
 }
 @enduml
