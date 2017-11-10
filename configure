@@ -84,7 +84,7 @@ else
 fi
 
 IQUOTES="${SRC_DIR} ${SRC_DIR}/aeten ${GEN_DIR}/${SRC_DIR} ${GEN_DIR}/${SRC_DIR}/aeten ${GEN_DIR}/${TEST} ${GEN_DIR}/${TEST}/aeten"
-LDFLAGS+='-lpthread -pthread'
+LDFLAGS+='-lpthread'
 CFLAGS+='-pthread'
 
 ${VERSION} && { echo ${PROJECT_NAME}: version ${TAG}; exit 0; }

@@ -184,9 +184,8 @@ method_visitor_init='
 	fi
 	_tmp_args="${_args}"
 	_args=
-	for _arg in $(echo "${_tmp_args}"|awk "BEGIN{RS=\",\"}{match(\$0, /^\s*([^ ]+\s*\*?)\s*([^ ^\n]+)\s*\$/, arg);print arg[2] \":\" arg[1]}"); do
+	for _arg in $(echo "${_tmp_args}"|awk "BEGIN{RS=\",\"}{match(\$0, /^\s*([a-zA-Z][ a-zA-Z0-9_]*(\s+\*?|\*?\s+))\s*([a-zA-Z][a-zA-Z0-9_]+)\s*\$/, arg);print arg[3] \":\" arg[1] }"); do
 		[ -z "${_args}" ] || { _args+=", "; }
-		_arg=${_arg// /}
 		_args+="$(full_qualified_type "${_arg/*:/}" ${_parameterized_types}) ${_arg/:*/}"
 	done
 	_args_without_self=${_args}
@@ -274,11 +273,11 @@ full_qualified_type() {
 	if [ -z "${_type}" ]; then
 		return
 	fi
-	_class_to_resolve=$(echo "${_type}"|sed 's/[^a-zA-Z0-9^_]*\([a-zA-Z0-9_]\+\)[^a-zA-Z0-9^_]*/\1/')
+	_class_to_resolve=$(echo "${_type}"|sed 's/[^a-zA-Z0-9^_]*\([a-zA-Z0-9_ ]\+\)[^a-zA-Z0-9^_]*/\1/')
 	for _parametrized_type in $(echo -e "${_parametrized_types// /\\n}"); do
-		if [ ${_class_to_resolve} = ${_parametrized_type/:*/} ]; then
+		if [ ${_class_to_resolve// /} = ${_parametrized_type/:*/} ]; then
 			_class_to_resolve=${_parametrized_type/*:/}
-			_class_to_resolve=${_class_to_resolve// /}
+			_class_to_resolve=${_class_to_resolve}
 		break
 		fi
 	done
@@ -289,12 +288,12 @@ full_qualified_type() {
 		_namespace=${_class/${_classtype}:${_classid}:/}
 		_namespace=${_namespace/:*/}
 		_classname=${_class//*:/}
-		if [ ${_classname} = ${_class_to_resolve} ]; then
+		if [ ${_classname} = ${_class_to_resolve// /} ]; then
 			echo $(echo "${_type}"|sed 's/\([^a-ZA-Z0-9^_]*\)\([a-ZA-Z0-9_]\+\)\([^a-ZA-Z0-9^_]*\)/\1'${_namespace//./_}_${_classname}'\3/')
 			return 0
 		fi
 	done
-	echo $(echo "${_type}"|sed 's/\([^a-ZA-Z0-9^_]*\)\([a-ZA-Z0-9_]\+\)\([^a-ZA-Z0-9^_]*\)/\1'${_class_to_resolve}'\3/')
+	echo $(echo "${_type}"|sed 's/\([^a-ZA-Z0-9^_]*\)\([a-ZA-Z0-9_ ]\+\)\([^a-ZA-Z0-9^_]*\)/\1'${_class_to_resolve}'\3/')
 }
 
 
@@ -432,7 +431,7 @@ helper_method_visitor() {
 				cat - <<EOF
 static inline ${_type} ${CLASS_NAME}_${_name}(${_args_without_self});
 ${_type} ${C_CLASS}_${_function}(${_args_without_self}) {
-	return ${CLASS_NAME}_${_name}($(echo "${_args_without_self}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
+	return ${CLASS_NAME}_${_name}($(echo "${_args_without_self}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $NF}'|sed 's/,$//'));
 }
 
 EOF
@@ -440,7 +439,7 @@ EOF
 				cat - <<EOF
 ${_type} ${C_CLASS}_${_function}(${_args/${c_class}\* self/${C_CLASS}* self}) {
 	check(self != NULL, NullPointerException, "self");
-	return self->_self->${_function}($(echo "${_args/self/self->_self}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
+	return self->_self->${_function}($(echo "${_args/self/self->_self}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $NF}'|sed 's/,$//'));
 }
 
 EOF
@@ -453,7 +452,7 @@ ${C_PARENT}* ${_function}(${_args_without_self}) {
 	${C_CLASS}* self = malloc(sizeof(${C_CLASS}));
 	check(self != NULL, HeapAllocationException, "self = malloc(%zu)", sizeof(${C_CLASS}));
 	_${C_CLASS}_init(self);
-	${CLASS_NAME}_new${_name}($(echo "${_args}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
+	${CLASS_NAME}_new${_name}($(echo "${_args}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $NF}'|sed 's/,$//'));
 	return (${C_PARENT}*)self;
 }
 inline ${C_PARENT} ${_function/${CLASS_NAME}/${CLASS_NAME}_fromStack}(${_args_without_self}) {
@@ -461,7 +460,7 @@ inline ${C_PARENT} ${_function/${CLASS_NAME}/${CLASS_NAME}_fromStack}(${_args_wi
 	check(self != NULL, StackAllocationException, "self = alloca(%zu)", sizeof(${C_CLASS}));
 	_${C_CLASS}_init(self);
 	self->delete = self->finalize;
-	${CLASS_NAME}_new${_name}($(echo "${_args}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
+	${CLASS_NAME}_new${_name}($(echo "${_args}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $NF}'|sed 's/,$//'));
 	return *((${C_PARENT}*)self);
 }
 
@@ -472,7 +471,7 @@ ${C_PARENT}_Array* ${_function/new_/newArrayOf_}(${_args/${c_class}* self/size_t
 	array->size = sizeof(${C_CLASS});
 	for (size_t i=0; i<_length; ++i) {
 		_${C_CLASS}_init(&array->values[i]);
-		${CLASS_NAME}_new${_name}($(echo "${_args/self/&array->values[i]}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $2}'|sed 's/,$//'));
+		${CLASS_NAME}_new${_name}($(echo "${_args/self/&array->values[i]}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $NF}'|sed 's/,$//'));
 	}
 	return (${C_PARENT}_Array*)array;
 }
