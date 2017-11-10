@@ -1,6 +1,7 @@
 #include "ReentrantLock.h"
 
 #include <pthread.h>
+#include <errno.h>
 
 #define import
 #include "concurrent/Condition.h"
@@ -65,6 +66,25 @@ void ReentrantLockCondition_new(ReentrantLockCondition* self, pthread_mutex_t *m
 
 void ReentrantLockCondition_await(ReentrantLockCondition* self) {
 	pthread_cond_wait(&self->_cond, self->_mutex);
+}
+
+void ReentrantLockCondition_awaitNanos(ReentrantLockCondition* self, uint64_t nanosTimeout) {
+	struct timespec from;
+	check(clock_gettime(CLOCK_REALTIME, &from) == 0, Error, "%m (errno: %u)", errno);
+	struct timespec end = {
+		from.tv_sec,
+		from.tv_nsec + nanosTimeout
+	};
+	while (end.tv_nsec >= 1000000000) {
+		end.tv_nsec -= 1000000000;
+		++end.tv_sec;
+	}
+
+	ReentrantLockCondition_awaitUntil(self, end);
+}
+
+void ReentrantLockCondition_awaitUntil(ReentrantLockCondition* self, struct timespec deadline) {
+	pthread_cond_timedwait(&self->_cond, self->_mutex, &deadline);
 }
 
 void ReentrantLockCondition_signal(ReentrantLockCondition* self) {
