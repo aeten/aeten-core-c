@@ -33,6 +33,9 @@ namespace aeten.concurrent.posix {
 @enduml
 */
 
+static struct timespec time_diff(struct timespec start, struct timespec end);
+
+
 void ReentrantLock_new(ReentrantLock* self) {
 	pthread_mutex_t pthread_mutex = PTHREAD_MUTEX_INITIALIZER;
 	self->_mutex = pthread_mutex;
@@ -68,7 +71,7 @@ void ReentrantLockCondition_await(ReentrantLockCondition* self) {
 	pthread_cond_wait(&self->_cond, self->_mutex);
 }
 
-void ReentrantLockCondition_awaitNanos(ReentrantLockCondition* self, uint64_t nanosTimeout) {
+uint64_t ReentrantLockCondition_awaitNanos(ReentrantLockCondition* self, uint64_t nanosTimeout) {
 	struct timespec from;
 	check(clock_gettime(CLOCK_REALTIME, &from) == 0, Error, "%m (errno: %u)", errno);
 	struct timespec end = {
@@ -80,11 +83,28 @@ void ReentrantLockCondition_awaitNanos(ReentrantLockCondition* self, uint64_t na
 		++end.tv_sec;
 	}
 
-	ReentrantLockCondition_awaitUntil(self, end);
+	if (ReentrantLockCondition_awaitUntil(self, end)) {
+		struct timespec now, rest;
+		check(clock_gettime(CLOCK_REALTIME, &now) == 0, Error, "%m (errno: %u)", errno);
+		rest = time_diff(from, now);
+		return (rest.tv_sec * 1E9) + rest.tv_nsec;
+	}
+	return 0;
 }
 
-void ReentrantLockCondition_awaitUntil(ReentrantLockCondition* self, struct timespec deadline) {
-	pthread_cond_timedwait(&self->_cond, self->_mutex, &deadline);
+bool ReentrantLockCondition_awaitUntil(ReentrantLockCondition* self, struct timespec deadline) {
+	if (pthread_cond_timedwait(&self->_cond, self->_mutex, &deadline) == 0) {
+		return true;
+	}
+	switch (errno) {
+		case ETIMEDOUT:
+			return false;
+		case EINTR:
+			throw(InterruptException);
+			return true;
+	}
+	check((errno == ETIMEDOUT) || (errno == EINTR), Error, "pthread_cond_timedwait: %m (errno: %u)", errno);
+	return true;
 }
 
 void ReentrantLockCondition_signal(ReentrantLockCondition* self) {
@@ -93,5 +113,16 @@ void ReentrantLockCondition_signal(ReentrantLockCondition* self) {
 
 void ReentrantLockCondition_signalAll(ReentrantLockCondition* self) {
 	pthread_cond_broadcast(&self->_cond);
+}
+
+struct timespec time_diff(struct timespec start, struct timespec end) {
+	struct timespec diff;
+	diff.tv_sec = end.tv_sec - start.tv_sec;
+	diff.tv_nsec = end.tv_nsec - start.tv_nsec;
+	while (diff.tv_nsec < 0 ) {
+		diff.tv_nsec += 1E9;
+		--diff.tv_sec;
+	}
+	return diff;
 }
 

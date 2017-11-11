@@ -5,8 +5,8 @@
 !include Object.c
 interface aeten.concurrent.Condition {
 	+ await()
-	+ awaitNanos(uint64_t nanosTimeout)
-	+ awaitUntil(struct timespec deadline)
+	+ uint64_t awaitNanos(uint64_t nanosTimeout)
+	+ bool awaitUntil(struct timespec deadline)
 	+ signal()
 	+ signalAll()
 }
