@@ -352,9 +352,9 @@ object_declaration_attribute_visitor() {
 	}
 }
 
-static_declaration_attribute_visitor() {
+private_static_declaration_attribute_visitor() {
 	eval "${attributes_visitor_init}"
-	if ${_static}; then
+	if ${_static} && (! ${_public} ); then
 		if ${_final}; then
 			if [ "${_type/*\**/*}" = '*' ] || [ "${_type/*\[\]*/[]}" = '[]' ]; then
 				echo "static ${_type} const ${_name};"
@@ -363,6 +363,21 @@ static_declaration_attribute_visitor() {
 			fi
 		else
 			echo "static ${_volatile}${_type} ${_name};"
+		fi
+	fi
+}
+
+public_static_declaration_attribute_visitor() {
+	eval "${attributes_visitor_init}"
+	if ${_static} && ${_public}; then
+		if ${_final}; then
+			if [ "${_type/*\**/*}" = '*' ] || [ "${_type/*\[\]*/[]}" = '[]' ]; then
+				echo "${_type} const ${_name};"
+			else
+				echo "const ${_type} ${_name};"
+			fi
+		else
+			echo "${_volatile}${_type} ${_name};"
 		fi
 	fi
 }
@@ -439,7 +454,7 @@ EOF
 				cat - <<EOF
 ${_type} ${C_CLASS}_${_function}(${_args/${c_class}\* self/${C_CLASS}* self}) {
 	check(self != NULL, NullPointerException, "self");
-	return self->_self->${_function}($(echo "${_args/self/self->_self}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $NF}'|sed 's/,$//'));
+	return self->_implementation->${c_class}.${_function}($(echo "${_args/self/self->_instance}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $NF}'|sed 's/,$//'));
 }
 
 EOF
@@ -451,6 +466,9 @@ inline static void ${CLASS_NAME}_new${_name}(${_args/${c_class}\* self/${C_CLASS
 ${C_PARENT}* ${_function}(${_args_without_self}) {
 	${C_CLASS}* self = malloc(sizeof(${C_CLASS}));
 	check(self != NULL, HeapAllocationException, "self = malloc(%zu)", sizeof(${C_CLASS}));
+	struct _${C_CLASS}Interface *iface = malloc(sizeof(struct _${C_CLASS}Interface));
+	check(iface != NULL, HeapAllocationException, "iface = malloc(%zu)", sizeof(struct _${C_CLASS}Interface));
+	memcpy(((uint8_t*)self) + offsetof(${C_CLASS}, _implementation), &iface, sizeof(self->_implementation));
 	_${C_CLASS}_init(self);
 	${CLASS_NAME}_new${_name}($(echo "${_args}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $NF}'|sed 's/,$//'));
 	return (${C_PARENT}*)self;
@@ -458,8 +476,11 @@ ${C_PARENT}* ${_function}(${_args_without_self}) {
 inline ${C_PARENT} ${_function/${CLASS_NAME}/${CLASS_NAME}_fromStack}(${_args_without_self}) {
 	${C_CLASS}* self = alloca(sizeof(${C_CLASS}));
 	check(self != NULL, StackAllocationException, "self = alloca(%zu)", sizeof(${C_CLASS}));
+	struct _${C_CLASS}Interface *iface = alloca(sizeof(struct _${C_CLASS}Interface));
+	check(iface != NULL, StackAllocationException, "iface = alloca(%zu)", sizeof(struct _${C_CLASS}Interface));
+	memcpy(((uint8_t*)self) + offsetof(${C_CLASS}, _implementation), &iface, sizeof(self->_implementation));
 	_${C_CLASS}_init(self);
-	self->delete = self->finalize;
+	self->_implementation->aeten_Object.delete = self->_implementation->aeten_Object.finalize;
 	${CLASS_NAME}_new${_name}($(echo "${_args}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $NF}'|sed 's/,$//'));
 	return *((${C_PARENT}*)self);
 }
@@ -483,7 +504,15 @@ EOF
 interface_init_method_visitor() {
 	eval "${method_visitor_init}"
 	if ( ! ${_constructor} ) && ${_default} && [ ${c_class} = ${C_CLASS} ] && [ ${CLASS_TYPE} = interface ]; then
-		echo -e "\tself->${_name} = ${CLASS_NAME}_${_name};"
+		for _cls in $(echo "${CLASS_HIERARCHY// /\n}"|tac); do
+			_c_class=$(visit_class c_class ${_cls})
+			for _method_name in $(visit_class constructor_definition ${_cls}); do
+				if [ ${_method_name/:*/} = $_name ]; then
+					echo -e "\tself->_implementation->${_c_class}.${_name} = ${CLASS_NAME}_${_name};"
+					return
+				fi
+			done
+		done
 	fi
 }
 
@@ -500,6 +529,11 @@ constructor_definition_method_visitor() {
 include_class_visitor() {
 	eval "${class_visitor_init}"
 	echo '#include "'${namespace//./\/}/${classname}.h'"'
+}
+
+c_class_class_visitor() {
+	eval "${class_visitor_init}"
+	echo -n ${c_class}
 }
 
 definition_class_visitor() {
@@ -572,10 +606,25 @@ attributes_instance_class_visitor() {
 	local _attribute
 
 	if [ -n "${attributes}" ]; then
-		echo -e "// Attributes of ${c_class}"
+		echo -e "// Instance attributes of ${c_class}"
 		IFS=$'\n'
 		for _attribute in ${attributes}; do
 			visit_attribute object_declaration "${_attribute}"
+		done
+		unset IFS
+	fi
+}
+
+attributes_class_class_visitor() {
+	eval "${class_visitor_init}"
+	eval "${attributes_class_visitor_init}"
+	local _attribute
+
+	if [ -n "${attributes}" ]; then
+		echo -e "// Static attributes of ${c_class}"
+		IFS=$'\n'
+		for _attribute in ${attributes}; do
+			visit_attribute public_static_declaration "${_attribute}"
 		done
 		unset IFS
 	fi
@@ -590,7 +639,7 @@ attributes_static_class_visitor() {
 		echo -e "// Attributes of ${c_class}"
 		IFS=$'\n'
 		for _attribute in ${attributes}; do
-			visit_attribute static_declaration "${_attribute}"
+			visit_attribute private_static_declaration "${_attribute}"
 		done
 		unset IFS
 	fi
@@ -629,7 +678,16 @@ constructor_init_class_visitor() {
 	eval "${methods_class_visitor_init}"
 
 	if [ ${c_class} != ${C_CLASS} ] && [ ${CLASS_TYPE} = class ]; then
-		echo -e "\t_${c_class}_init((${c_class}*)self);"
+		cat - <<EOF
+	{
+		${c_class} obj = {
+			self->_mark,
+			(struct _${c_class}Interface*)&self->_implementation->${c_class},
+			(${c_class}*)self->_instance
+		};
+		_${c_class}_init(&obj);
+	}
+EOF
 	else
 		IFS=$'\n'
 		for method in ${methods}; do
@@ -675,6 +733,7 @@ EOF
 	cat - <<EOF
 
 typedef struct _${c_class} ${c_class};
+typedef struct _${c_class}Class ${c_class}Class;
 typedef struct {
 	size_t length;
 	size_t size;
@@ -683,25 +742,42 @@ typedef struct {
 
 void _${C_CLASS}_init(${c_class}* self);
 
-EOF
-	for cls in ${CLASS_HIERARCHY}; do
-		visit_class typedef ${cls}
-	done
-	echo
-		echo "struct _${c_class} {"
-		echo -e "\tuint32_t const _mark;"
-		echo -e "\t${c_class}* const _self;"
-		for cls in ${CLASS_HIERARCHY}; do
-			visit_class methods ${cls}
-			visit_class attributes_instance ${cls}
-		done
-		echo -e '};\n'
+$(for cls in ${CLASS_HIERARCHY}; do
+	visit_class typedef ${cls}
+done)
 
-	for cls in ${CLASS_HIERARCHY}; do
-		visit_class method_declaration ${cls}
-	done
 
-	cat - <<EOF
+/** Interface ${c_class} */
+struct _${c_class}Interface {
+$(for cls in ${CLASS_HIERARCHY}; do
+	_c_class=$(visit_class c_class ${cls})
+	echo "	struct {"
+	visit_class methods ${cls}
+	echo "	} ${_c_class};"
+done)
+};
+
+/** Class ${c_class} */
+struct _${c_class}_Class {
+$(for cls in ${CLASS_HIERARCHY}; do
+		visit_class attributes_class ${cls}
+done)
+};
+extern struct _${c_class}_Class _class__${c_class};
+
+/** Instance of ${c_class} */
+struct _${c_class} {
+	uint32_t const _mark;
+	struct _${c_class}Interface* const _implementation;
+	${c_class}* const _instance;
+$(for cls in ${CLASS_HIERARCHY}; do
+	visit_class attributes_instance ${cls}
+done)
+};
+
+$(for cls in ${CLASS_HIERARCHY}; do
+	visit_class method_declaration ${cls}
+done)
 
 #ifdef _${C_CLASS^^}_PRIVATE
 $(visit_class c_private ${CLASS})
@@ -777,11 +853,11 @@ EOF
 	uint32_t mark = _AETEN_MARK;
 	char *ptr = (char*)self;
 	memcpy(ptr + offsetof(${C_CLASS}, _mark), &mark, sizeof(self->_mark));
-	memcpy(ptr + offsetof(${C_CLASS}, _self), &self, sizeof(self->_self));
+	memcpy(ptr + offsetof(${C_CLASS}, _instance), &self, sizeof(self->_instance));
 EOF
 	fi
 
-	for _cls in ${CLASS_HIERARCHY}; do
+	for _cls in $(echo "${CLASS_HIERARCHY// /\n}"|tac); do
 		visit_class constructor_init ${_cls}
 	done
 
@@ -796,8 +872,23 @@ EOF
 		done
 		_methods=${_methods//:default/}
 		_methods=${_methods//:override/}
+		_implementations=
 		for _method_name in $({ echo -e "${_override_methods}"; comm -13 --nocheck-order <(echo -e "${_default_methods}"|sort -u) <(echo -e "${_methods}"|sort -u); }|sort -u); do
-			echo -e "\tself->${_method_name} = ${CLASS_NAME}_${_method_name};"
+			_implementation+=" ${_method_name}"
+		done
+		for _impl in $_implementation; do
+			found=false
+			for _cls in $(echo "${CLASS_HIERARCHY// /\n}"|tac); do
+				$found && found=false && break
+				_c_class=$(visit_class c_class ${_cls})
+				for _method_name in $(visit_class constructor_definition ${_cls}); do
+					if [ ${_method_name/:*/} = $_impl ]; then
+						echo -e "\tself->_implementation->${_c_class}.${_impl} = ${CLASS_NAME}_${_impl};"
+						found=true;
+						break
+					fi
+				done
+			done
 		done
 	fi
 	cat - <<EOF
@@ -833,7 +924,7 @@ EOF
 	fi
 }
 
-CLASS_HIERARCHY=$(echo -e "${OBJECT}\n$(get_parents ${CLASS}|tac)\n${CLASS}"|sed '/^$/d'|uniq)
+CLASS_HIERARCHY=$(echo -e "${CLASS}\n$(get_parents ${CLASS})\n${OBJECT}"|sed '/^$/d'|uniq)
 for cls in ${CLASSES}; do
 	if [ "${cls}" = "${CLASS}" ]; then
 		for output in ${OUT}; do
