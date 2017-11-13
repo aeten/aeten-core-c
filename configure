@@ -203,10 +203,10 @@ for _src in $(find ${TEST} -name \*.c); do
 	depedencies="$(${replace_suffix} .c .o ${_src}) "
 
 	inform "Building target bindep from ${_src}" >&2
-	${target} --command bindep --depends '${output}/${triplet}'$(${replace_suffix} .c .o.d ${_src}) '${output}/all/'"${TEST}/${executable}.d"
+	${target} --command bindep --depends '${output}/${triplet}/'$(${replace_suffix} .c .o.d ${_src}) '${output}/${triplet}/'"${TEST}/${executable}.d"
 
 	inform "Building target ld from ${_src}" >&2
-	_out='${output}/'"${TEST}/${executable}"
+	_out='${output}/${triplet}/'"${TEST}/${executable}"
 	${target} --command ld --depends '${output}/${triplet}/'$(${replace_suffix} .c .o ${_src}) --depends '| '${_out}.d "${_out}"
 
 	inform "Building target run from ${_src}" >&2

@@ -10,7 +10,7 @@ rule cc
 rule ld
     description = Link objects into ${out}
     depfile = ${out}.d
-    command = _out='${out}'; ${ld} -o '${out}' ${ldflags} $$(sed '1 d; s/\\$$//' ${out}.d) && [ "$${_out##*.}" = so ] && chmod -x '${out}'
+    command = _out='${out}'; ${ld} -o '${out}' ${ldflags} $$(sed '1 d; s/\\$$//' ${out}.d) && { [ "$${_out##*.}" = so ] && chmod -x '${out}' || true; }
 
 rule ar
     description = Link objects into ${out}
@@ -44,7 +44,7 @@ rule objdep
 rule bindep
     description = Genarate depfile for ${in}
     depfile = ${out}
-    command = deps=$$(for _inc in $$(sed '1 s,.\+:\s*\\\?,,; s,\(^\|\s\)${generated}/,,g; s/\.[hc]\(\s*\\\?\)/.c\x0/g; s/[^ ]\+\/lang\.c\x0//g; s/[^ ]\+\.[^c]\x0//g; s,\(^\| \|\x0\([^\n]\)\),\n\2,g; s/\x0//; \,${out}/${triplet}\s*,d; /[^c]$$/d;' ${in}|sort -u); do [ -f $${_inc} ] && echo ${output}/${triplet}/$$(dirname $${_inc})/$$(basename $${_inc} .c).o; done) && ninja $$deps && echo "$$deps"|sed '1 s,^,${out}/${triplet}:,; 1 s,\.d:,: \n,; 1 ! s/^/ /; $$ ! s/$$/ \\/;' > ${out}
+    command = deps=$$(for _inc in $$(sed '1 s,.\+:\s*\\\?,,; s,\(^\|\s\)${generated}/,,g; s/\.[hc]\(\s*\\\?\)/.c\x0/g; s/[^ ]\+\/lang\.c\x0//g; s/[^ ]\+\.[^c]\x0//g; s,\(^\| \|\x0\([^\n]\)\),\n\2,g; s/\x0//; \,${out}/${triplet}\s*,d; /[^c]$$/d;' ${in}|sort -u); do [ -f $${_inc} ] && echo ${output}/${triplet}/$$(dirname $${_inc})/$$(basename $${_inc} .c).o; done) && ninja $$deps && echo "$$deps"|sed '1 s,^,${out}:\n ,; 1 ! s/^/ /; $$ ! s/$$/ \\/;' > ${out}
 
 rule libdep
     description = Genarate depfile ${out}
