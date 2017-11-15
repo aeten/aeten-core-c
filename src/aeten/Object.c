@@ -22,7 +22,9 @@ namespace aeten {
 void Object_finalize(Object* self) {}
 void Object_delete(Object* self) {
 	Object_finalize(self);
-	free(self);
+	if (self->_isInStack == false) {
+		free(self);
+	}
 }
 
 bool Object_equals(Object *self, void *other) {

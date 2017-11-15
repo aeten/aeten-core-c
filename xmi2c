@@ -462,25 +462,20 @@ EOF
 		fi
 	else
 		cat - <<EOF
+void _${C_CLASS}_init(${c_class}* self, bool isInStack);
+
 inline static void ${CLASS_NAME}_new${_name}(${_args/${c_class}\* self/${C_CLASS}* self});
 ${C_PARENT}* ${_function}(${_args_without_self}) {
 	${C_CLASS}* self = malloc(sizeof(${C_CLASS}));
 	check(self != NULL, HeapAllocationException, "self = malloc(%zu)", sizeof(${C_CLASS}));
-	struct _${C_CLASS}Interface *iface = malloc(sizeof(struct _${C_CLASS}Interface));
-	check(iface != NULL, HeapAllocationException, "iface = malloc(%zu)", sizeof(struct _${C_CLASS}Interface));
-	memcpy(((uint8_t*)self) + offsetof(${C_CLASS}, _implementation), &iface, sizeof(self->_implementation));
-	_${C_CLASS}_init(self);
+	_${C_CLASS}_init(self, false);
 	${CLASS_NAME}_new${_name}($(echo "${_args}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $NF}'|sed 's/,$//'));
 	return (${C_PARENT}*)self;
 }
 inline ${C_PARENT} ${_function/${CLASS_NAME}/${CLASS_NAME}_fromStack}(${_args_without_self}) {
 	${C_CLASS}* self = alloca(sizeof(${C_CLASS}));
 	check(self != NULL, StackAllocationException, "self = alloca(%zu)", sizeof(${C_CLASS}));
-	struct _${C_CLASS}Interface *iface = alloca(sizeof(struct _${C_CLASS}Interface));
-	check(iface != NULL, StackAllocationException, "iface = alloca(%zu)", sizeof(struct _${C_CLASS}Interface));
-	memcpy(((uint8_t*)self) + offsetof(${C_CLASS}, _implementation), &iface, sizeof(self->_implementation));
-	_${C_CLASS}_init(self);
-	self->_implementation->aeten_Object.delete = self->_implementation->aeten_Object.finalize;
+	_${C_CLASS}_init(self, true);
 	${CLASS_NAME}_new${_name}($(echo "${_args}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $NF}'|sed 's/,$//'));
 	return *((${C_PARENT}*)self);
 }
@@ -491,7 +486,7 @@ ${C_PARENT}_Array* ${_function/new_/newArrayOf_}(${_args/${c_class}* self/size_t
 	array->length = _length;
 	array->size = sizeof(${C_CLASS});
 	for (size_t i=0; i<_length; ++i) {
-		_${C_CLASS}_init(&array->values[i]);
+		_${C_CLASS}_init(&array->values[i], false);
 		${CLASS_NAME}_new${_name}($(echo "${_args/self/&array->values[i]}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $NF}'|sed 's/,$//'));
 	}
 	return (${C_PARENT}_Array*)array;
@@ -508,7 +503,7 @@ interface_init_method_visitor() {
 			_c_class=$(visit_class c_class ${_cls})
 			for _method_name in $(visit_class constructor_definition ${_cls}); do
 				if [ ${_method_name/:*/} = $_name ]; then
-					echo -e "\tself->_implementation->${_c_class}.${_name} = ${CLASS_NAME}_${_name};"
+					echo "	_class->${_c_class}.${_name} = ${CLASS_NAME}_${_name};"
 					return
 				fi
 			done
@@ -678,16 +673,7 @@ constructor_init_class_visitor() {
 	eval "${methods_class_visitor_init}"
 
 	if [ ${c_class} != ${C_CLASS} ] && [ ${CLASS_TYPE} = class ]; then
-		cat - <<EOF
-	{
-		${c_class} obj = {
-			self->_mark,
-			(struct _${c_class}Interface*)&self->_implementation->${c_class},
-			(${c_class}*)self->_instance
-		};
-		_${c_class}_init(&obj);
-	}
-EOF
+		echo "	_${c_class}_Class_init((struct _${c_class}_Class*)&_class__${C_CLASS}.${c_class});"
 	else
 		IFS=$'\n'
 		for method in ${methods}; do
@@ -740,40 +726,51 @@ typedef struct {
 	${c_class} *values;
 } ${c_class}_Array;
 
-void _${C_CLASS}_init(${c_class}* self);
-
 $(for cls in ${CLASS_HIERARCHY}; do
 	visit_class typedef ${cls}
 done)
 
 
-/** Interface ${c_class} */
-struct _${c_class}Interface {
+/** Class ${c_class} */
+struct _${c_class}_Class {
 $(for cls in ${CLASS_HIERARCHY}; do
 	_c_class=$(visit_class c_class ${cls})
 	echo "	struct {"
 	visit_class methods ${cls}
 	echo "	} ${_c_class};"
+	visit_class attributes_class ${cls}
 done)
 };
+void _${c_class}_Class_init(struct _${c_class}_Class *iface);
 
-/** Class ${c_class} */
-struct _${c_class}_Class {
-$(for cls in ${CLASS_HIERARCHY}; do
-		visit_class attributes_class ${cls}
-done)
-};
+#ifdef _${C_CLASS^^}_PRIVATE
+struct _${c_class}_Class _class__${c_class};
+__attribute__((constructor))
+void _${c_class}_Class_constructor(void) {
+	_${c_class}_Class_init(&_class__${c_class});
+}
+#else
 extern struct _${c_class}_Class _class__${c_class};
+#endif // _${C_CLASS^^}_PRIVATE
 
 /** Instance of ${c_class} */
 struct _${c_class} {
 	uint32_t const _mark;
-	struct _${c_class}Interface* const _implementation;
+	uint8_t const _isInStack;
+	struct _${c_class}_Class* const _implementation;
 	${c_class}* const _instance;
 $(for cls in ${CLASS_HIERARCHY}; do
 	visit_class attributes_instance ${cls}
 done)
 };
+
+#define ${c_class}_cast(object) \
+	&((${c_class}){ \
+		object->_mark, \
+		object->_isInStack, \
+		(struct _${c_class}Class*)&object->_implementation->${c_class}, \
+		(${c_class}*)instance->_instance \
+	})
 
 $(for cls in ${CLASS_HIERARCHY}; do
 	visit_class method_declaration ${cls}
@@ -845,17 +842,8 @@ $(for _cls in ${CLASS_HIERARCHY}; do
 	visit_class helper_methods ${_cls}
 done)
 
-void _${C_CLASS}_init(${c_class}* self) {
+void _${c_class}_Class_init(struct _${c_class}_Class *_class) {
 EOF
-	if [ ${classtype} = class ]; then
-		cat - <<EOF
-	check(self != NULL, NullPointerException, "Cannot int instance of ${C_CLASS}");
-	uint32_t mark = _AETEN_MARK;
-	char *ptr = (char*)self;
-	memcpy(ptr + offsetof(${C_CLASS}, _mark), &mark, sizeof(self->_mark));
-	memcpy(ptr + offsetof(${C_CLASS}, _instance), &self, sizeof(self->_instance));
-EOF
-	fi
 
 	for _cls in $(echo "${CLASS_HIERARCHY// /\n}"|tac); do
 		visit_class constructor_init ${_cls}
@@ -883,7 +871,7 @@ EOF
 				_c_class=$(visit_class c_class ${_cls})
 				for _method_name in $(visit_class constructor_definition ${_cls}); do
 					if [ ${_method_name/:*/} = $_impl ]; then
-						echo -e "\tself->_implementation->${_c_class}.${_impl} = ${CLASS_NAME}_${_impl};"
+						echo "	_class->${_c_class}.${_impl} = ${CLASS_NAME}_${_impl};"
 						found=true;
 						break
 					fi
@@ -891,6 +879,25 @@ EOF
 			done
 		done
 	fi
+
+cat <<EOF
+}
+
+void _${C_CLASS}_init(${c_class}* self, bool isInStack) {
+EOF
+	if [ ${classtype} = class ]; then
+		cat - <<EOF
+	check(self != NULL, NullPointerException, "Cannot int instance of ${C_CLASS}");
+	uint32_t mark = _AETEN_MARK;
+	uint8_t *ptr = (uint8_t*)self;
+	struct _${C_CLASS}_Class *_class = &_class__${C_CLASS};
+	memcpy(ptr + offsetof(${C_CLASS}, _mark), &mark, sizeof(self->_mark));
+	memcpy(ptr + offsetof(${C_CLASS}, _isInStack), &isInStack, sizeof(isInStack));
+	memcpy(ptr + offsetof(${C_CLASS}, _implementation), &_class, sizeof(self->_implementation));
+	memcpy(ptr + offsetof(${C_CLASS}, _instance), &self, sizeof(self->_instance));
+EOF
+	fi
+
 	cat - <<EOF
 }
 
