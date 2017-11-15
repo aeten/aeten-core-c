@@ -38,6 +38,11 @@ static struct timespec time_diff(struct timespec start, struct timespec end);
 
 void ReentrantLock_new(ReentrantLock* self) {
 	pthread_mutex_t pthread_mutex = PTHREAD_MUTEX_INITIALIZER;
+	pthread_mutexattr_t mutex_init;
+	bzero(&mutex_init, sizeof(pthread_mutexattr_t));
+	pthread_mutexattr_init(&mutex_init);
+	pthread_mutexattr_settype(&mutex_init, PTHREAD_MUTEX_RECURSIVE_NP);
+	pthread_mutex_init(&pthread_mutex, &mutex_init);
 	self->_mutex = pthread_mutex;
 }
 
