@@ -57,7 +57,7 @@ rule run
 
 rule install
     description = Install in ${prefix}
-    command = cp -a ${generated}/${srcdir}/* ${prefix}/include/ && mkdir --parents ${prefix}/lib/${triplet} && find ${output}/${triplet} -maxdepth 1 -type f \( -name \*.a -o -name \*.so \) -exec cp {} ${prefix}/lib/${triplet}/ \; && find ${output}/${triplet} -maxdepth 1 -type f -not -name \*.so -a -executable -exec cp {} ${prefix}/bin \; && find ${srcdir} -name \*.h -exec sh -c "header='{}'; cp \"\$${header}\" \"${prefix}/include/\$${header#${srcdir}/}\"" \;
+    command = mkdir --parent ${prefix}/include/ && cp -a ${generated}/${srcdir}/* ${prefix}/include/ && mkdir --parents ${prefix}/lib/${triplet} && find ${output}/${triplet} -maxdepth 1 -type f \( -name \*.a -o -name \*.so \) -exec cp {} ${prefix}/lib/${triplet}/ \; && find ${output}/${triplet} -maxdepth 1 -type f -not -name \*.so -a -executable -exec cp {} ${prefix}/bin \; && find ${srcdir} -name \*.h -exec sh -c "header='{}'; cp \"\$${header}\" \"${prefix}/include/\$${header#${srcdir}/}\"" \;
 
 rule puml2cclass
     description = Include UML '${in}' in a c class file '${out}'
