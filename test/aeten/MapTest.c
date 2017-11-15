@@ -60,7 +60,7 @@ static bool MapTest_test(MapTest* self) {
 	uint64_t number;
 	uint64_t *number_get;
 	uint32_t i;
-	for (i=0; i<1024; ++i) {
+	for (i=6139; i<7290; ++i) {
 		number = 0xFFFFFFFF00000000;
 		number += (uint64_t)i;
 		Map_put(map, &i, &number);

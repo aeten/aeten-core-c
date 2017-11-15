@@ -51,7 +51,7 @@ void HashMap_new(HashMap* self, size_t key_size, size_t value_size) {
 	self->_key_size = key_size;
 	self->_value_size = value_size;
 	self->_bits = DEFAULT_HASH_BITS;
-	self->_hash_min = 0;
+	self->_hash_min = UINT64_MAX;
 	self->_hash_max = 0;
 	self->_size = 0;
 	self->_hash_array = NULL;
@@ -108,20 +108,21 @@ void *HashMap_put(HashMap *self, void* key, void *value) {
 			// If is first allocation
 			if (self->_hash_min == UINT64_MAX) {
 				self->_hash_min = hash;
+				old_max = hash;
 			}
 			size_t size       = self->_hash_max - self->_hash_min + 1;
 			/// @append increase hash array;
 			self->_hash_array = realloc(self->_hash_array, size * sizeof(List*));
 			check(self->_hash_array, HeadAllocationException, "realloc(%zu)", size * sizeof(List*));
-			memset(self->_hash_array + (old_max - self->_hash_min + 1), 0x0, (self->_hash_max - old_max - 1) * sizeof(List*));
+			memset(self->_hash_array + (old_max - self->_hash_min + 1), 0x0, (self->_hash_max - old_max) * sizeof(List*));
 		}
 		/// @append endif
 		/// @append if(hash<min) then (yes)
 		if (hash < self->_hash_min) {
-			size_t    old_size  = (self->_hash_max - self->_hash_min);
+			size_t    old_size  = (self->_hash_max - self->_hash_min + 1);
 			uint64_t  old_min   = self->_hash_min;
 			self->_hash_min     = hash;
-			size_t size         = self->_hash_max - self->_hash_min;
+			size_t size         = self->_hash_max - self->_hash_min + 1;
 			/// @append increase hash array;
 			self->_hash_array   = realloc(self->_hash_array, size * sizeof(List*));
 			check(self->_hash_array, HeadAllocationException, "realloc(%zu)", size * sizeof(List*));
