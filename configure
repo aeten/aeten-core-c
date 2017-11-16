@@ -51,10 +51,11 @@ version|V: Shows ${PROJECT_NAME} version.
 EOF
 )
 
+: ${CONFIG:=${CURDIR}/config.sh}
+[ -f "${CONFIG}" ] && . "${CONFIG}"
 : ${BINARY:=library}
 : ${PREFIX:=/usr/local}
 : ${WARNING:=all error}
-: ${CONFIG:=${CURDIR}/config.sh}
 : ${SRC:=src}
 : ${TEST:=test}
 : ${OUT:=build}
@@ -84,12 +85,11 @@ else
 fi
 
 IQUOTES="${SRC_DIR} ${SRC_DIR}/aeten ${GEN_DIR}/${SRC_DIR} ${GEN_DIR}/${SRC_DIR}/aeten ${GEN_DIR}/${TEST} ${GEN_DIR}/${TEST}/aeten"
-LDFLAGS+='-lpthread'
-CFLAGS+='-pthread'
+LDFLAGS+=' -lpthread'
+CFLAGS+=' -fPIC -pthread'
 
 ${VERSION} && { echo ${PROJECT_NAME}: version ${TAG}; exit 0; }
 
-[ -f "${CONFIG}" ] && . "${CONFIG}"
 
 INSTALL_LIB_DIR="${PREFIX}/lib"
 INSTALL_BIN_DIR="${PREFIX}/bin"
