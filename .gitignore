@@ -1,7 +1,19 @@
+# Build
+.ninja_*
 .description
 config.sh
-.ninja_*
 build.ninja
 build/
 generated
 makefile
+
+# Eclipse
+.cproject
+.externalToolBuilders/
+.project
+.settings/
+
+# QtCreator
+*.pro
+*.pro.user
+.*.swp
