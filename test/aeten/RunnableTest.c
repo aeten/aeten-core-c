@@ -40,7 +40,7 @@ int main(int argc, char** argv) {
 	RunnableTest_delete(test);
 	// Stack allocation
 	Runnable stack_test = new_RunnableTest_fromStack();
-	test = (RunnableTest*) stack_test._instance;
+	test = (RunnableTest*) stack_test._object_;
 	if (test->result != 20) {
 		return 4;
 	}

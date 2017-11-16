@@ -385,7 +385,7 @@ public_static_declaration_attribute_visitor() {
 callback_method_visitor() {
 	eval "${method_visitor_init}"
 	[ "${_stereotype}" = "constructor" ] && return
-	( ! ${_override} ) && ( ! ${_static} ) && echo -e "\t${C_CLASS}_${_name}_t ${_name};"
+	( ! ${_override} ) && ( ! ${_static} ) && echo "		${C_CLASS}_${_name}_t ${_name};"
 }
 
 declaration_method_visitor() {
@@ -454,7 +454,7 @@ EOF
 				cat - <<EOF
 ${_type} ${C_CLASS}_${_function}(${_args/${c_class}\* self/${C_CLASS}* self}) {
 	check(self != NULL, NullPointerException, "self");
-	return self->_implementation->${c_class}.${_function}($(echo "${_args/self/self->_instance}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $NF}'|sed 's/,$//'));
+	return self->_class_->${c_class}.${_function}($(echo "${_args/self/self->_object_}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $NF}'|sed 's/,$//'));
 }
 
 EOF
@@ -719,7 +719,6 @@ EOF
 	cat - <<EOF
 
 typedef struct _${c_class} ${c_class};
-typedef struct _${c_class}Class ${c_class}Class;
 typedef struct {
 	size_t length;
 	size_t size;
@@ -755,21 +754,21 @@ extern struct _${c_class}_Class _class__${c_class};
 
 /** Instance of ${c_class} */
 struct _${c_class} {
-	uint32_t const _mark;
-	uint8_t const _isInStack;
-	struct _${c_class}_Class* const _implementation;
-	${c_class}* const _instance;
+	uint32_t const _mark_;
+	uint8_t const _isInStack_;
+	struct _${c_class}_Class* const _class_;
+	${c_class}* const _object_;
 $(for cls in ${CLASS_HIERARCHY}; do
 	visit_class attributes_instance ${cls}
 done)
 };
 
-#define ${c_class}_cast(object) \
-	&((${c_class}){ \
-		object->_mark, \
-		object->_isInStack, \
-		(struct _${c_class}Class*)&object->_implementation->${c_class}, \
-		(${c_class}*)instance->_instance \
+#define ${c_class}_cast(object) \\
+	&((${c_class}){ \\
+		object->_mark_, \\
+		object->_isInStack_, \\
+		(struct _${c_class}_Class*)&object->_class_->${c_class}, \\
+		(${c_class}*)instance->_object_ \\
 	})
 
 $(for cls in ${CLASS_HIERARCHY}; do
@@ -862,9 +861,9 @@ EOF
 		_methods=${_methods//:override/}
 		_implementations=
 		for _method_name in $({ echo -e "${_override_methods}"; comm -13 --nocheck-order <(echo -e "${_default_methods}"|sort -u) <(echo -e "${_methods}"|sort -u); }|sort -u); do
-			_implementation+=" ${_method_name}"
+			_implementations+=" ${_method_name}"
 		done
-		for _impl in $_implementation; do
+		for _impl in $_implementations; do
 			found=false
 			for _cls in $(echo "${CLASS_HIERARCHY// /\n}"|tac); do
 				$found && found=false && break
@@ -891,10 +890,10 @@ EOF
 	uint32_t mark = _AETEN_MARK;
 	uint8_t *ptr = (uint8_t*)self;
 	struct _${C_CLASS}_Class *_class = &_class__${C_CLASS};
-	memcpy(ptr + offsetof(${C_CLASS}, _mark), &mark, sizeof(self->_mark));
-	memcpy(ptr + offsetof(${C_CLASS}, _isInStack), &isInStack, sizeof(isInStack));
-	memcpy(ptr + offsetof(${C_CLASS}, _implementation), &_class, sizeof(self->_implementation));
-	memcpy(ptr + offsetof(${C_CLASS}, _instance), &self, sizeof(self->_instance));
+	memcpy(ptr + offsetof(${C_CLASS}, _mark_), &mark, sizeof(self->_mark_));
+	memcpy(ptr + offsetof(${C_CLASS}, _isInStack_), &isInStack, sizeof(isInStack));
+	memcpy(ptr + offsetof(${C_CLASS}, _class_), &_class, sizeof(self->_class_));
+	memcpy(ptr + offsetof(${C_CLASS}, _object_), &self, sizeof(self->_object_));
 EOF
 	fi
 
