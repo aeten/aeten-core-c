@@ -49,4 +49,11 @@ typedef struct {
 	(pointer != NULL) && ((Object*)pointer)->_mark_ == _AETEN_MARK \
 )
 
+#define READONLY_INIT(attribute, value) do { \
+		typeof(attribute) _val_ = value; \
+		uint8_t* _ptr_ = (uint8_t*)&attribute; \
+		memcpy(_ptr_, &_val_, sizeof(attribute)); \
+	} while (0)
+
+
 #endif // AETEN_LANG_H
