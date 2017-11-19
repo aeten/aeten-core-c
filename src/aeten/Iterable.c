@@ -5,7 +5,7 @@
 !include Iterator.c
 namespace aeten {
 	interface Iterable<T> {
-		+ Iterator<T> iterator()
+		+ Iterator<T>* iterator()
 	}
 }
 @enduml

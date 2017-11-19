@@ -7,7 +7,7 @@ namespace aeten {
 	interface MapEntry<K,V> {
 		+ K* getKey()
 		+ V* getValue()
-		+ V* setValue(V* value)
+		+ void setValue(V* value)
 	}
 }
 @enduml

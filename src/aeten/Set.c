@@ -3,10 +3,11 @@
 /*
 @startuml
 !include Object.c
+!include Collection.c
 namespace aeten {
 	interface Set<T> extends Collection {
 		+ bool contains(T* element)
-		+ bool add(T* element) <<default>> <<optional>>
+		+ bool add(T* element) <<override>> <<default>> <<optional>>
 	}
 	note right of Set::contains
 		Returns true if this set contains the specified element.

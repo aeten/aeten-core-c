@@ -5,10 +5,12 @@
 #include "MapEntry.h"
 #include "Collection.h"
 #include "Set.h"
+#include "Map.h"
 #include "List.h"
 #include "Hash.h"
 #include "ArrayList.h"
 #include "HashMapEntry.h"
+#include "HashMapKeySet.h"
 
 /*! \file
 @startuml HashMap
@@ -17,6 +19,10 @@
 !include List.c
 namespace aeten {
 	class HashMap<K,V> implements Map {
+		+ {static} HashMap(size_t key_size, size_t value_size) <<constructor>>
+		# finalize() <<override>>
+		+ V* put(K* key, V* value) <<override>>
+		+ V* remove(K* key) <<override>>
 		- size : size_t
 		- hash_min: uint64_t
 		- hash_max: uint64_t
@@ -24,24 +30,35 @@ namespace aeten {
 		- key_size: size_t
 		- value_size: size_t
 		- hash_array: List**
-
-		+ {static} HashMap(size_t key_size, size_t value_size) <<constructor>>
-		# finalize() <<override>>
-		+ V* put(K* key, V* value) <<override>>
-		+ V* remove(K* key) <<override>>
 	}
 }
 @enduml
 
 @startuml HashMapEntry
 !include Object.c
-!include Map.c
+!include MapEntry.c
+!include HashMap.c!HashMap
 namespace aeten {
-	class HashMapEntry implements MapEntry
+	class HashMapEntry<K,V> implements MapEntry {
+		+ {static} HashMapEntry(HashMap* map, size_t hash_array_idx, size_t hash_list_idx) <<constructor>>
+		- map: HashMap*
+		- hash_array_idx: size_t
+		- hash_list_idx: size_t
+	}
 }
 @enduml
 
-
+@startuml HashMapKeySet
+!include Object.c
+!include Set.c
+!include HashMap.c!HashMap
+namespace aeten {
+	class HashMapKeySet<T> implements Set {
+		+ {static} HashMapKeySet(HashMap* map) <<constructor>>
+		- map: HashMap*
+	}
+}
+@enduml
 */
 
 #define DEFAULT_HASH_BITS 7
@@ -110,7 +127,7 @@ void *HashMap_put(HashMap *self, void* key, void *value) {
 				self->_hash_min = hash;
 				old_max = hash;
 			}
-			size_t size       = self->_hash_max - self->_hash_min + 1;
+			size_t size	    = self->_hash_max - self->_hash_min + 1;
 			/// @append increase hash array;
 			self->_hash_array = realloc(self->_hash_array, size * sizeof(List*));
 			check(self->_hash_array, HeadAllocationException, "realloc(%zu)", size * sizeof(List*));
@@ -119,12 +136,12 @@ void *HashMap_put(HashMap *self, void* key, void *value) {
 		/// @append endif
 		/// @append if(hash<min) then (yes)
 		if (hash < self->_hash_min) {
-			size_t    old_size  = (self->_hash_max - self->_hash_min + 1);
-			uint64_t  old_min   = self->_hash_min;
-			self->_hash_min     = hash;
-			size_t size         = self->_hash_max - self->_hash_min + 1;
+			size_t	 old_size  = (self->_hash_max - self->_hash_min + 1);
+			uint64_t  old_min	= self->_hash_min;
+			self->_hash_min	  = hash;
+			size_t size	      = self->_hash_max - self->_hash_min + 1;
 			/// @append increase hash array;
-			self->_hash_array   = realloc(self->_hash_array, size * sizeof(List*));
+			self->_hash_array	= realloc(self->_hash_array, size * sizeof(List*));
 			check(self->_hash_array, HeadAllocationException, "realloc(%zu)", size * sizeof(List*));
 			/// @append Move...;
 			memmove(self->_hash_array + (old_min - self->_hash_min), self->_hash_array, old_size * sizeof(List*));
@@ -181,9 +198,41 @@ Set* HashMap_entrySet(HashMap* self) {
 }
 
 Set* HashMap_keySet(HashMap* self) {
-	// TODO: Implement
-	return NULL;
+	return new_HashMapKeySet(self);
 }
 
-void HashMapEntry_new(HashMapEntry *self) {
+void HashMapEntry_new(HashMapEntry *self, HashMap *map, size_t hash_array_idx, size_t hash_list_idx) {
+	self->_map = map;
+	self->_hash_array_idx = hash_array_idx;
+	self->_hash_list_idx = hash_list_idx;
+}
+
+void *HashMapEntry_getKey(HashMapEntry *self) {
+	return List_get(self->_map->_hash_array[self->_hash_array_idx], self->_hash_list_idx);
+}
+
+void *HashMapEntry_getValue(HashMapEntry *self) {
+	return (((uint8_t *)List_get(self->_map->_hash_array[self->_hash_array_idx], self->_hash_list_idx)) + self->_map->_key_size);
+}
+
+void HashMapEntry_setValue(HashMapEntry *self, void *value) {
+	memcpy(((uint8_t *)List_get(self->_map->_hash_array[self->_hash_array_idx], self->_hash_list_idx)) + self->_map->_key_size, value, self->_map->_value_size);
+}
+
+/* HashMapKeySet*/
+void HashMapKeySet_new(HashMapKeySet* self, HashMap *map) {
+	self->_map = map;
+}
+
+bool HashMapKeySet_contains(HashMapKeySet* self, void *element) {
+	return (HashMap_get(self->_map, element) != NULL);
+}
+
+size_t HashMapKeySet_size(HashMapKeySet* self) {
+	return HashMap_size(self->_map);
+}
+
+Iterator *HashMapKeySet_iterator(HashMapKeySet* self) {
+	// TODO
+	return NULL;
 }
