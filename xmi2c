@@ -37,10 +37,6 @@ get_parent() {
 	local class=$1
 	local id=$(echo ${class}|cut -d : -f 2)
 	local parents=$(xmlstarlet sel -B -t -v "//UML:Generalization[@child='${id}']/@parent" "${XMI}";true)
-	if [ ${MODE} = 'simple' ]; then
-		set -- ${parents}
-		[ ${#} -gt 1 ] && echo 'The simple mode support only one parent per interface' >&2 && exit 1
-	fi
 	for id in ${parents}; do
 		class=$(echo ${CLASSES}|awk -F: 'BEGIN{ RS = " " } $2 ~ /'${id}'/ { print $0 }')
 		echo $class
@@ -52,10 +48,6 @@ get_parents() {
 	local class=$1
 	local id=$(echo ${class}|cut -d : -f 2)
 	local parents=$(xmlstarlet sel -B -t -v "//UML:Generalization[@child='${id}']/@parent" "${XMI}";true)
-	if [ ${MODE} = 'simple' ]; then
-		set -- ${parents}
-		[ ${#} -gt 1 ] && echo 'The simple mode support only one parent per interface' >&2 && exit 1
-	fi
 	for id in ${parents}; do
 		class=$(echo ${CLASSES}|awk -F: 'BEGIN{ RS = " " } $2 ~ /'${id}'/ { print $0 }')
 		echo $class
@@ -372,12 +364,12 @@ public_static_declaration_attribute_visitor() {
 	if ${_static} && ${_public}; then
 		if ${_final}; then
 			if [ "${_type/*\**/*}" = '*' ] || [ "${_type/*\[\]*/[]}" = '[]' ]; then
-				echo "${_type} const ${_name};"
+				echo "	${_type} const ${_name};"
 			else
-				echo "const ${_type} ${_name};"
+				echo "	const ${_type} ${_name};"
 			fi
 		else
-			echo "${_volatile}${_type} ${_name};"
+			echo "	${_volatile}${_type} ${_name};"
 		fi
 	fi
 }
@@ -673,7 +665,7 @@ constructor_init_class_visitor() {
 	eval "${methods_class_visitor_init}"
 
 	if [ ${c_class} != ${C_CLASS} ] && [ ${CLASS_TYPE} = class ]; then
-		echo "	_${c_class}_Class_init((struct _${c_class}_Class*)&_class__${C_CLASS}.${c_class});"
+		echo "	_${c_class}_Class_init((struct _${c_class}_Class*)&${C_CLASS}_class.${c_class});"
 	else
 		IFS=$'\n'
 		for method in ${methods}; do
@@ -710,6 +702,8 @@ header_class_visitor() {
 
 #include "aeten/lang.h"
 
+typedef struct _${c_class} ${c_class};
+
 EOF
 	for cls in ${CLASSES}; do
 		if [ "${cls}" != "${CLASS}" ]; then
@@ -718,7 +712,6 @@ EOF
 	done
 	cat - <<EOF
 
-typedef struct _${c_class} ${c_class};
 typedef struct {
 	size_t length;
 	size_t size;
@@ -743,10 +736,10 @@ done)
 void _${c_class}_Class_init(struct _${c_class}_Class *iface);
 
 #ifdef _${C_CLASS^^}_PRIVATE
-struct _${c_class}_Class _class__${c_class};
+struct _${c_class}_Class ${c_class}_class;
 __attribute__((constructor))
 void _${c_class}_Class_constructor(void) {
-	_${c_class}_Class_init(&_class__${c_class});
+	_${c_class}_Class_init(&${c_class}_class);
 }
 #else
 extern struct _${c_class}_Class _class__${c_class};
@@ -791,6 +784,7 @@ EOF
 	else
 		echo "#if defined(import)"
 	fi
+	echo "#define ${CLASS_NAME}_class ${C_CLASS}_class"
 	_methods=$(for _cls in ${CLASS_HIERARCHY}; do
 		visit_class constructor_definition ${_cls}
 	done)
@@ -889,7 +883,7 @@ EOF
 	check(self != NULL, NullPointerException, "Cannot int instance of ${C_CLASS}");
 	uint32_t mark = _AETEN_MARK;
 	uint8_t *ptr = (uint8_t*)self;
-	struct _${C_CLASS}_Class *_class = &_class__${C_CLASS};
+	struct _${C_CLASS}_Class *_class = &${C_CLASS}_class;
 	memcpy(ptr + offsetof(${C_CLASS}, _mark_), &mark, sizeof(self->_mark_));
 	memcpy(ptr + offsetof(${C_CLASS}, _isInStack_), &isInStack, sizeof(isInStack));
 	memcpy(ptr + offsetof(${C_CLASS}, _class_), &_class, sizeof(self->_class_));
