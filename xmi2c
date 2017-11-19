@@ -69,7 +69,7 @@ CLASSES=$(xmlstarlet el -v "${XMI}" | awk '/Class\[/ {
 	if (classname[1] !~ /\$\$\$/) {print classtype ":" id[1] ":" namespace[1] ":" classname[1];}
 }')
 
-CLASS=$(echo "${CLASSES}"|awk -F: '{if ($4 == "'$(basename ${XMI} .xmi)'") {print}}')
+CLASS=$(echo "${CLASSES}"|awk -F: 'BEGIN{pkg="'$(dirname "${XMI}")'"; gsub(/\//, "." pkg)} {if (($4 == "'$(basename ${XMI} .xmi)'") && sub(".*" $3 "$", $3, pkg)) {print}}')
 [ -z "${CLASS}" ] && { echo Class $(basename ${XMI} .xmi) not found in ${CLASSES}; exit 1; }
 OBJECT=$(echo "${CLASSES}"|awk -F: '{if (($3 == "aeten") && ($4 == "Object")) {print}}')
 CLASS_TYPE=${CLASS/:*/}
@@ -323,9 +323,15 @@ visit_method() {
 
 typedef_method_visitor() {
 	eval "${method_visitor_init}"
-	[ "${_stereotype}" = "constructor" ] && return
-	( ! ${_override} ) && ( ! ${_static} ) && {
+	[ -z "${_name}" ] && _name=new
+	( ! ${_override} ) && {
+		if ${_static}; then
+			if [ ${c_class} = ${C_CLASS} ]; then
+				echo "typedef ${_type} (*${C_CLASS}_${_name}_t)($(echo "${_args_without_self}"|sed "s/^${c_class}\\* _\?self/${C_CLASS}* self/"));"
+			fi
+		else
 			echo "typedef ${_type} (*${C_CLASS}_${_name}_t)($(echo "${_args}"|sed "s/^${c_class}\\* _\?self/${C_CLASS}* self/"));"
+		fi
 	}
 }
 
@@ -376,8 +382,14 @@ public_static_declaration_attribute_visitor() {
 
 callback_method_visitor() {
 	eval "${method_visitor_init}"
-	[ "${_stereotype}" = "constructor" ] && return
-	( ! ${_override} ) && ( ! ${_static} ) && echo "		${C_CLASS}_${_name}_t ${_name};"
+	[ -z "${_name}" ] && _name=new
+	if ( ! ${_override} ); then
+		if ${_static} && [ ${c_class} != ${C_CLASS} ]; then
+			echo "		${c_class}_${_name}_t ${_name};"
+		else
+			echo "		${C_CLASS}_${_name}_t ${_name};"
+		fi
+	fi
 }
 
 declaration_method_visitor() {
@@ -392,7 +404,9 @@ ${_type} *${_function}(${_args_without_self});
 EOF
 	elif ${_public}; then
 		if ${_static}; then
-			echo "${_type} ${C_CLASS}_${_function}(${_args_without_self});"
+			if [ ${c_class} = ${C_CLASS} ]; then
+				echo "${_type} ${C_CLASS}_${_function}(${_args_without_self});"
+			fi
 		else
 			echo "${_type} ${C_CLASS}_${_function}(${_args/${c_class}\* self/${C_CLASS}* self});"
 		fi
@@ -431,17 +445,20 @@ helper_method_visitor() {
 
 	if  ( ! ${_constructor} ); then
 		if ( [ ${CLASS_TYPE} = class ] && ( [ ${classtype} = interface ] && ( ! ${_default} ) ) || ( ${_override} && [ ${c_class} = ${C_CLASS} ] ) ) || ( [ ${c_class} = ${C_CLASS} ] && ${_default} ); then
-			echo "static ${_type} ${CLASS_NAME}_${_name}(${_args/${c_class}\* self/${C_CLASS}* self});"
-		fi
-		if ( ! ${_override} ); then
+			if ( ! ( ${_static} && [ ${c_class} != ${C_CLASS} ] ) ); then
+				echo "static ${_type} ${CLASS_NAME}_${_name}(${_args/${c_class}\* self/${C_CLASS}* self});"
+			fi
+		elif ( ! ${_override} ); then
 			if ${_static}; then
-				cat - <<EOF
+				if [ ${c_class} = ${C_CLASS} ]; then
+					cat - <<EOF
 static inline ${_type} ${CLASS_NAME}_${_name}(${_args_without_self});
 ${_type} ${C_CLASS}_${_function}(${_args_without_self}) {
 	return ${CLASS_NAME}_${_name}($(echo "${_args_without_self}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $NF}'|sed 's/,$//'));
 }
 
 EOF
+				fi
 			else
 				cat - <<EOF
 ${_type} ${C_CLASS}_${_function}(${_args/${c_class}\* self/${C_CLASS}* self}) {
@@ -508,7 +525,7 @@ constructor_definition_method_visitor() {
 	if ( ! ${_constructor} ) ; then
 		echo -n ${_name}
 		${_override} && [ ${c_class} = ${C_CLASS} ] && echo -n :override
-		${_default} && echo -n :default
+		( ${_default} || ( ${_static} && [ ${c_class} != ${C_CLASS} ] ) ) && echo -n :default
 		echo 
 	fi
 }
@@ -704,6 +721,10 @@ header_class_visitor() {
 
 typedef struct _${c_class} ${c_class};
 
+#ifdef import
+#	define _import
+#	undef import
+#endif
 EOF
 	for cls in ${CLASSES}; do
 		if [ "${cls}" != "${CLASS}" ]; then
@@ -711,6 +732,10 @@ EOF
 		fi
 	done
 	cat - <<EOF
+#ifdef _import
+#	define import
+#	undef _import
+#endif
 
 typedef struct {
 	size_t length;
@@ -742,7 +767,7 @@ void _${c_class}_Class_constructor(void) {
 	_${c_class}_Class_init(&${c_class}_class);
 }
 #else
-extern struct _${c_class}_Class _class__${c_class};
+extern struct _${c_class}_Class ${c_class}_class;
 #endif // _${C_CLASS^^}_PRIVATE
 
 /** Instance of ${c_class} */
@@ -923,7 +948,6 @@ EOF
 
 	fi
 }
-
 CLASS_HIERARCHY=$(echo -e "${CLASS}\n$(get_parents ${CLASS})\n${OBJECT}"|sed '/^$/d'|uniq)
 for cls in ${CLASSES}; do
 	if [ "${cls}" = "${CLASS}" ]; then
