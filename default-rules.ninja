@@ -22,6 +22,7 @@ rule objdep
     depfile = ${out}
     command = { $
         _srcdir=$$(dirname ${in}); $
+        _includes=; $
         echo; $
         get_includes() { $
             local _inc; $
@@ -32,8 +33,10 @@ rule objdep
                 echo "$${_classes}"|sed -n "s,^$$(dirname "$${1}")/$$(basename "$${_inc}" .c)$$,${generated}/\0.h,p"; $
                 for _dir in $$(echo ${srcdir} ${testdir} ${srcdir}/aeten ${testdir}/aeten $$(dirname $${1}) ${srcdir}/$${_srcdir##${testdir}/}|tr ' ' '\n'|sort -u); do $
                     _file="$${_dir}/$${_inc}"; $
+                    echo "$${_includes}"|grep --quiet "$${_file}" && continue; $
                     [ -f $${_file} ] && [ $${_file} != $${1} ] || continue; $
                     echo ${generated}/$${_file%%.c}.h; $
+                    _includes="$${_includes}\n$${_file}"; $
                     get_includes "$${_file}"; $
                 done; $
             done; $
