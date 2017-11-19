@@ -6,9 +6,25 @@ Object oriented C library.
 Headers and the corresponding C skeletons implemention can be generated from UML class diagramm.
 The generation supports XMI (tested from PlantUML xmi:star output).
 
+Depedencies for runtime are:
+
+ * glibc
+ * libpthread
+
+Depedencies for compilation are:
+
+ * gcc
+ * ninja (ninja-build)
+ * bash
+ * gawk
+ * xmlstarlet
+
 The build system is under construction and needs some improvements:
 
+    ( cd cots/plantuml; ant )
     ./configure
     ninja deps
-    ninja
+    ninja -j 1
     sudo ninja install
+
+You cane use `./configure --help` for more options.
