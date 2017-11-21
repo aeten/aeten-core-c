@@ -11,7 +11,7 @@
 namespace aeten.io {
 	interface SelectableChannel extends Channel {
 		+ SelectorService* provider()
-		+ SelectionKey* registerTo(Selector* sel, int ops)
+		+ SelectionKey* registerTo(Selector* sel, int ops, void* attachment)
 	}
 }
 !endif

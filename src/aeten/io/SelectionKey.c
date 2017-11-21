@@ -2,7 +2,9 @@
 
 /*
 @startuml
-!include Channel.c
+!include SelectableChannel.c
+!ifndef SelectableChannel
+!define SelectableChannel
 namespace aeten.io {
 	interface SelectionKey {
 		+ {static} OP_ACCEPT: int <<final>>
@@ -10,14 +12,19 @@ namespace aeten.io {
 		+ {static} OP_READ: int <<final>>
 		+ {static} OP_WRITE: int <<final>>
 
-		+ int readyOps() 
-		+ Channel* channel()
+		+ int interestOps()
+		+ SelectionKey* setInterestOps(int interest)
+		+ int readyOps()
+		+ SelectableChannel* channel()
+		+ void* attachment()
+		+ void* attach(void* attachment)
 		+ bool isAcceptable() <<default>>
 		+ bool isReadable() <<default>>
 		+ bool isWritable() <<default>>
 		+ bool isConnectable() <<default>>
 	}
 }
+!endif
 @enduml
 */
 
