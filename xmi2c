@@ -201,8 +201,8 @@ class_visitor_init='
 
 methods_class_visitor_init='
 	local methods=$(xmlstarlet sel -B -t -m "//UML:Class[@xmi.id='"'"'${classid}'"'"']/UML:Classifier.feature/UML:Operation" -v "concat(./@name, '"'"' «'"'"', ./@ownerScope, '"'"'» '"'"', '"'"'«'"'"', @visibility, '"'"'»'"'"')" -n "${XMI}"|sed "s/&lt;/</g;s/&gt;/>/g"; true)
-	if [ ${classtype} = class ] && { echo "${methods}"|grep -q -v "${classname}\s*(\s*${c_class}\*" ; }; then
-		methods+=$(echo -e "${classname}() «classifier» «public»\n")
+	if [ ${classtype} = class ] && { ( ! echo "${methods}"|grep -q "^\s*${classname}\s*(" ) ; }; then
+		methods+=$(echo -e "\n${classname}() «classifier» «public»\n\n")
 	fi
 '
 
@@ -442,7 +442,6 @@ EOF
 helper_method_visitor() {
 	eval "${method_visitor_init}"
 	local _cls
-
 	if  ( ! ${_constructor} ); then
 		if ( [ ${CLASS_TYPE} = class ] && ( [ ${classtype} = interface ] && ( ! ${_default} ) ) || ( ${_override} && [ ${c_class} = ${C_CLASS} ] ) ) || ( [ ${c_class} = ${C_CLASS} ] && ${_default} ); then
 			if ( ! ( ${_static} && [ ${c_class} != ${C_CLASS} ] ) ); then
@@ -460,6 +459,9 @@ ${_type} ${C_CLASS}_${_function}(${_args_without_self}) {
 EOF
 				fi
 			else
+				if ( ${_default} || [ ${CLASS_TYPE} = class ] ) && [ ${c_class} = ${C_CLASS} ]; then
+					echo "static inline ${_type} ${CLASS_NAME}_${_function}(${_args/${c_class}\* self/${C_CLASS}* self});"
+				fi
 				cat - <<EOF
 ${_type} ${C_CLASS}_${_function}(${_args/${c_class}\* self/${C_CLASS}* self}) {
 	check(self != NULL, NullPointerException, "self");
