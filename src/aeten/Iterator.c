@@ -5,13 +5,16 @@
 !include Object.c
 namespace aeten {
 	interface Iterator<T> {
-		+ bool has_next()
+		+ bool hasNext()
 		+ T* next()
-		+ set(T* element)
-		+ add(T* element)
-		+ remove(T* element)
+		+ remove(T* element) <<default>>
 	}
 }
 @enduml
 */
+
+void Iterator_remove(Iterator *iterator, void *element) {
+	check(0, UnsupportedOperationException, "Iterator.remove()");
+}
+
 

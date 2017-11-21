@@ -1,6 +1,7 @@
 #include "HashMap.h"
 
 #define import
+#include "Object.h"
 #include "Iterator.h"
 #include "MapEntry.h"
 #include "Collection.h"

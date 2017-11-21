@@ -90,11 +90,10 @@ void *ArrayBlockingQueue_take(ArrayBlockingQueue* self) {
 	return _queue_pop(self, false);
 }
 
-Iterator ArrayBlockingQueue_iterator(ArrayBlockingQueue *self) {
+Iterator *ArrayBlockingQueue_iterator(ArrayBlockingQueue *self) {
 	// TODO
 	check(0, NotImplementedOperationException, "ArrayBlockingQueue.iterator()");
-	Iterator iterator;
-	return iterator;
+	return NULL;
 }
 
 bool _queue_push(ArrayBlockingQueue* self, void *element, bool try_) {

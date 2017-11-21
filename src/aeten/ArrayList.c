@@ -89,10 +89,9 @@ size_t ArrayList_size(ArrayList *self) {
 	return self->_size;
 }
 
-Iterator ArrayList_iterator(ArrayList *self) {
+Iterator *ArrayList_iterator(ArrayList *self) {
 	// TODO
 	check(0, NotImplementedOperationException, "ArrayList.iterator()");
-	Iterator iterator;
-	return iterator;
+	return NULL;
 }
 
