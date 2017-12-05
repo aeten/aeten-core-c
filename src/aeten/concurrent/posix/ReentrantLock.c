@@ -98,18 +98,15 @@ uint64_t ReentrantLockCondition_awaitNanos(ReentrantLockCondition* self, uint64_
 }
 
 bool ReentrantLockCondition_awaitUntil(ReentrantLockCondition* self, struct timespec deadline) {
-	if (pthread_cond_timedwait(&self->_cond, self->_mutex, &deadline) == 0) {
-		return true;
-	}
-	switch (errno) {
+	switch (pthread_cond_timedwait(&self->_cond, self->_mutex, &deadline)) {
 		case ETIMEDOUT:
 			return false;
 		case EINTR:
 			throw(InterruptException);
 			return true;
+		default:
+			return true;
 	}
-	check((errno == ETIMEDOUT) || (errno == EINTR), Error, "pthread_cond_timedwait: %m (errno: %u)", errno);
-	return true;
 }
 
 void ReentrantLockCondition_signal(ReentrantLockCondition* self) {
