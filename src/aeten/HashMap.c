@@ -114,7 +114,12 @@ void *HashMap_put(HashMap *self, void* key, void *value) {
 			/// @append increase hash array;
 			self->_hash_array = realloc(self->_hash_array, size * sizeof(List*));
 			check(self->_hash_array, HeadAllocationException, "realloc(%zu)", size * sizeof(List*));
-			memset(self->_hash_array + (old_max - self->_hash_min + 1), 0x0, (self->_hash_max - old_max) * sizeof(List*));
+			// If is first allocation
+			if ((old_max - self->_hash_min) == 0) {
+			    memset(self->_hash_array, 0x0, sizeof(List*));
+			} else {
+			    memset(self->_hash_array + (old_max - self->_hash_min + 1), 0x0, (self->_hash_max - old_max) * sizeof(List*));
+			}
 		}
 		/// @append endif
 		/// @append if(hash<min) then (yes)
