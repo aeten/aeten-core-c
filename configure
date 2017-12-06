@@ -43,7 +43,7 @@ object-model|m <model>: The object model generation mode, _simple_ support only 
 cc <cc-exec-file>: The C compiler executable file path, _gcc_ by default.
 ld <ld-exec-file>: The linker executable file path, _gcc_ by default.
 ar <ar-exec-file>: The archive executable file path, _ar_ by default.
-triplet <triplet>: The compilation target\\[u0027]s normalized GNU triplet (deducted by \\\`cc -print-multiarch\\\` by default).
+triplet <triplet>: The compilation target\'s normalized GNU triplet (deducted by \`cc -print-multiarch\` by default).
 ninja <file>: The Ninja build project file to include
 warning <list>: The warning flags to activate, _all_ and _error_ by default.
 verbose: Verbose build output.
