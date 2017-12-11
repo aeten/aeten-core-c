@@ -129,8 +129,14 @@ method_visitor_init='
 	fi
 	if [ "${_stereotype/*public*/public}" = public ]; then
 		_public=true
-	else
+	elif [ "${_stereotype/*private*/private}" = private ]; then
 		_public=false
+	elif [ "${_stereotype/*package*/package}" = package ]; then
+		_public=false
+	elif [ "${_stereotype/*package*/protected}" = protected ]; then
+		_public=false
+	else
+		_public=true
 	fi
 	if [ "${_stereotype/*default*/default}" = default ]; then
 		_default=true
@@ -443,25 +449,24 @@ helper_method_visitor() {
 	eval "${method_visitor_init}"
 	local _cls
 	if  ( ! ${_constructor} ); then
-		if ( [ ${CLASS_TYPE} = class ] && ( [ ${classtype} = interface ] && ( ! ${_default} ) ) || ( ${_override} && [ ${c_class} = ${C_CLASS} ] ) ) || ( [ ${c_class} = ${C_CLASS} ] && ${_default} ); then
-			if ( ! ( ${_static} && [ ${c_class} != ${C_CLASS} ] ) ); then
-				echo "static ${_type} ${CLASS_NAME}_${_name}(${_args/${c_class}\* self/${C_CLASS}* self});"
-			fi
-		elif ( ! ${_override} ); then
-			if ${_static}; then
-				if [ ${c_class} = ${C_CLASS} ]; then
-					cat - <<EOF
-static inline ${_type} ${CLASS_NAME}_${_name}(${_args_without_self});
+		if ${_static}; then
+			if [ ${c_class} = ${C_CLASS} ]; then
+				cat - <<EOF
+static ${_type} ${CLASS_NAME}_${_name}(${_args_without_self});
 ${_type} ${C_CLASS}_${_function}(${_args_without_self}) {
 	return ${CLASS_NAME}_${_name}($(echo "${_args_without_self}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $NF}'|sed 's/,$//'));
 }
 
 EOF
-				fi
-			else
-				if ( ${_default} || [ ${CLASS_TYPE} = class ] ) && [ ${c_class} = ${C_CLASS} ]; then
-					echo "static inline ${_type} ${CLASS_NAME}_${_function}(${_args/${c_class}\* self/${C_CLASS}* self});"
-				fi
+			fi
+		else
+			if [ ${classtype} = class ] || \
+				( [ ${CLASS_TYPE} = class ] && ( ( ! ${_default} ) || ( [ ${c_class} = ${C_CLASS} ] && ${_override} ) ) ) || \
+				( [ ${CLASS_TYPE} = interface ] && [ ${c_class} = ${C_CLASS} ] && ( ${_default} || ${_override} ) ); then
+				echo "static ${_type} ${CLASS_NAME}_${_name}(${_args/${c_class}\* self/${C_CLASS}* self});"
+			fi
+			if ( ! ${_override} ); then
+				${_public} || echo -n 'static '
 				cat - <<EOF
 ${_type} ${C_CLASS}_${_function}(${_args/${c_class}\* self/${C_CLASS}* self}) {
 	check(self != NULL, NullPointerException, "self");
@@ -513,7 +518,7 @@ interface_init_method_visitor() {
 		for _cls in $(echo "${CLASS_HIERARCHY// /\n}"|tac); do
 			_c_class=$(visit_class c_class ${_cls})
 			for _method_name in $(visit_class constructor_definition ${_cls}); do
-				if [ ${_method_name/:*/} = $_name ]; then
+				if [ ${_method_name/:*/} = ${_name} ]; then
 					echo "	_class->${_c_class}.${_name} = ${CLASS_NAME}_${_name};"
 					return
 				fi
@@ -752,7 +757,7 @@ done)
 
 /** Class ${c_class} */
 struct _${c_class}_Class {
-$(for cls in ${CLASS_HIERARCHY}; do
+$(for cls in $(echo "${CLASS_HIERARCHY}"|tac); do
 	_c_class=$(visit_class c_class ${cls})
 	echo "	struct {"
 	visit_class methods ${cls}
@@ -763,7 +768,7 @@ done)
 void _${c_class}_Class_init(struct _${c_class}_Class *iface);
 
 #ifdef _${C_CLASS^^}_PRIVATE
-struct _${c_class}_Class ${c_class}_class;
+static struct _${c_class}_Class ${c_class}_class;
 __attribute__((constructor))
 void _${c_class}_Class_constructor(void) {
 	_${c_class}_Class_init(&${c_class}_class);
@@ -852,6 +857,7 @@ c_private_class_visitor() {
 	local _method_name
 	local _default_methods
 	local _override_methods
+	local _found
 
 	cat - <<EOF
 #include <assert.h>
@@ -865,6 +871,7 @@ done)
 void _${c_class}_Class_init(struct _${c_class}_Class *_class) {
 EOF
 
+	# TODO: remove inversion order (tac) when cast will be supported
 	for _cls in $(echo "${CLASS_HIERARCHY// /\n}"|tac); do
 		visit_class constructor_init ${_cls}
 	done
@@ -884,15 +891,15 @@ EOF
 		for _method_name in $({ echo -e "${_override_methods}"; comm -13 --nocheck-order <(echo -e "${_default_methods}"|sort -u) <(echo -e "${_methods}"|sort -u); }|sort -u); do
 			_implementations+=" ${_method_name}"
 		done
-		for _impl in $_implementations; do
-			found=false
+		for _impl in ${_implementations}; do
+			_found=false
 			for _cls in $(echo "${CLASS_HIERARCHY// /\n}"|tac); do
-				$found && found=false && break
+				${_found} && _found=false && break
 				_c_class=$(visit_class c_class ${_cls})
 				for _method_name in $(visit_class constructor_definition ${_cls}); do
-					if [ ${_method_name/:*/} = $_impl ]; then
+					if [ ${_method_name/:*/} = ${_impl} ]; then
 						echo "	_class->${_c_class}.${_impl} = ${CLASS_NAME}_${_impl};"
-						found=true;
+						_found=true;
 						break
 					fi
 				done

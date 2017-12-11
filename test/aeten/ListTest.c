@@ -79,7 +79,7 @@ static void catch_segv(bool iscatch) {
 	}
 }
 
-static bool ListTest_test(ListTest* self) {
+bool ListTest_test(ListTest* self) {
 	List *list = self->_list;
 	int number;
 	int i;
