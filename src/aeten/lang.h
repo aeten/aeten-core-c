@@ -46,7 +46,10 @@ typedef struct {
 
 #define _AETEN_MARK 0x01C3860A /* SOH Æ 10 */
 #define isObject(pointer) ( \
-	(pointer != NULL) && ((aeten_Object*)pointer)->_mark_ == _AETEN_MARK \
+	(pointer != NULL) && (((aeten_Object*)pointer)->_class_ >= _aeten_class_min_) && (((aeten_Object*)pointer)->_class_ <= _aeten_class_max_) && (((aeten_Object*)pointer)->_class_->_mark_ == _AETEN_MARK) \
+)
+#define isNull(pointer) ( \
+	(((aeten_Object*)pointer)->_class_ == NULL) || (((aeten_Object*)pointer)->_object_ == NULL) \
 )
 
 #define READONLY_INIT(attribute, value) do { \

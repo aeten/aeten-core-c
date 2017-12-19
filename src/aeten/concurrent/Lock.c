@@ -6,7 +6,7 @@
 !include Condition.c
 interface aeten.concurrent.Lock {
 	+ void lock()
-	+ Condition* newCondition()
+    + Condition newCondition()
 	+ bool tryLock()
 	+ void unlock()
 }

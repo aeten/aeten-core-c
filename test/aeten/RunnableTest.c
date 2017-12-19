@@ -28,8 +28,9 @@ void RunnableTest_run(RunnableTest* self) {
 }
 
 int main(int argc, char** argv) {
+    _count = 0;
 	// Heap allocation
-	RunnableTest *test = (RunnableTest*)new_RunnableTest();
+	RunnableTest *test = new_RunnableTest();
 	if (test->result != 10) {
 		return 1;
 	}
@@ -39,16 +40,16 @@ int main(int argc, char** argv) {
 	}
 	RunnableTest_delete(test);
 	// Stack allocation
-	Runnable stack_test = new_RunnableTest_fromStack();
-	test = (RunnableTest*) stack_test._object_;
-	if (test->result != 20) {
+	RunnableTest stack_test;
+	init_RunnableTest(&stack_test);
+	if (stack_test.result != 20) {
 		return 4;
 	}
-	Runnable_run(&stack_test);
-	if (test->result != 21) {
+	Runnable_run(Runnable_cast(&stack_test));
+	if (stack_test.result != 21) {
 		return 8;
 	}
-	Runnable_delete(&stack_test);
+	Runnable_delete(Runnable_cast(&stack_test));
 	return 0;
 }
 

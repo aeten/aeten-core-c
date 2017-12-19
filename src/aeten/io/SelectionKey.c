@@ -13,9 +13,9 @@ namespace aeten.io {
 		+ {static} OP_WRITE: int <<final>>
 
 		+ int interestOps()
-		+ SelectionKey* setInterestOps(int interest)
+		+ SelectionKey setInterestOps(int interest)
 		+ int readyOps()
-		+ SelectableChannel* channel()
+		+ SelectableChannel channel()
 		+ void* attachment()
 		+ void* attach(void* attachment)
 		+ bool isAcceptable() <<default>>
@@ -37,17 +37,17 @@ static void init(void) {
 }
 
 bool SelectionKey_isReadable(SelectionKey *self) {
-	return ((aeten_io_SelectionKey_readyOps(self) & aeten_io_SelectionKey_class.OP_ACCEPT) != 0);
+	return ((aeten_io_SelectionKey_readyOps(*self) & aeten_io_SelectionKey_class.OP_ACCEPT) != 0);
 }
 
 bool SelectionKey_isWritable(SelectionKey *self) {
-	return ((aeten_io_SelectionKey_readyOps(self) & aeten_io_SelectionKey_class.OP_ACCEPT) != 0);
+	return ((aeten_io_SelectionKey_readyOps(*self) & aeten_io_SelectionKey_class.OP_ACCEPT) != 0);
 }
 
 bool SelectionKey_isConnectable(SelectionKey *self) {
-	return ((aeten_io_SelectionKey_readyOps(self) & aeten_io_SelectionKey_class.OP_ACCEPT) != 0);
+	return ((aeten_io_SelectionKey_readyOps(*self) & aeten_io_SelectionKey_class.OP_ACCEPT) != 0);
 }
 
 bool SelectionKey_isAcceptable(SelectionKey *self) {
-	return ((aeten_io_SelectionKey_readyOps(self) & aeten_io_SelectionKey_class.OP_ACCEPT) != 0);
+	return ((aeten_io_SelectionKey_readyOps(*self) & aeten_io_SelectionKey_class.OP_ACCEPT) != 0);
 }

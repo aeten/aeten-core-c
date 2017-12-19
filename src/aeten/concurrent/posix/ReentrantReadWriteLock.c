@@ -16,18 +16,20 @@
 !include aeten/concurrent/Condition.c
 !include aeten/concurrent/Lock.c
 !include aeten/concurrent/ReadWriteLock.c
+!include ReentrantReadWriteLock.c!ReentrantReadLock
+!include ReentrantReadWriteLock.c!ReentrantWriteLock
 namespace aeten.concurrent.posix {
 	class ReentrantReadWriteLock implements aeten.concurrent.ReadWriteLock {
 		+ {static} ReentrantReadWriteLock() <<constructor>>
 		# finalize() <<override>>
 		- rw_lock: pthread_rwlock_t
-		- read_lock: Lock*
-		- write_lock: Lock*
+        - read_lock: ReentrantReadLock
+        - write_lock: ReentrantWriteLock
 	}
 }
 @enduml
 
-@startuml ReentrantReadLock
+@startuml(id=ReentrantReadLock) ReentrantReadLock
 !include concurrent/Lock.c
 namespace aeten.concurrent.posix {
 	class ReentrantReadLock implements aeten.concurrent.Lock {
@@ -37,7 +39,7 @@ namespace aeten.concurrent.posix {
 }
 @enduml
 
-@startuml ReentrantWriteLock
+@startuml(id=ReentrantWriteLock) ReentrantWriteLock
 !include concurrent/Lock.c
 namespace aeten.concurrent.posix {
 	class ReentrantWriteLock implements aeten.concurrent.Lock {
@@ -52,22 +54,22 @@ namespace aeten.concurrent.posix {
 void ReentrantReadWriteLock_new(ReentrantReadWriteLock* self) {
 	pthread_rwlock_t pthread_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 	self->_rw_lock = pthread_rwlock;
-	self->_read_lock = new_ReentrantReadLock(&self->_rw_lock);
-	self->_write_lock = new_ReentrantWriteLock(&self->_rw_lock);
+	init_ReentrantReadLock(&self->_read_lock, &self->_rw_lock);
+	init_ReentrantWriteLock(&self->_write_lock, &self->_rw_lock);
 }
 
 void ReentrantReadWriteLock_finalize(ReentrantReadWriteLock* self) {
-	Lock_delete(self->_read_lock);
-	Lock_delete(self->_write_lock);
+	Lock_delete(Lock_cast(&self->_read_lock));
+	Lock_delete(Lock_cast(&self->_write_lock));
 	pthread_rwlock_destroy(&self->_rw_lock);
 }
 
-Lock* ReentrantReadWriteLock_readLock(ReentrantReadWriteLock* self) {
-	return self->_read_lock;
+Lock ReentrantReadWriteLock_readLock(ReentrantReadWriteLock* self) {
+    return Lock_cast(&self->_read_lock);
 }
 
-Lock* ReentrantReadWriteLock_writeLock(ReentrantReadWriteLock* self) {
-	return self->_write_lock;
+Lock ReentrantReadWriteLock_writeLock(ReentrantReadWriteLock* self) {
+    return Lock_cast(&self->_write_lock);
 }
 
 void ReentrantReadLock_new(ReentrantReadLock* self, pthread_rwlock_t *rw_lock) {
@@ -86,9 +88,9 @@ void ReentrantReadLock_unlock(ReentrantReadLock* self) {
 	check(pthread_rwlock_unlock(self->_rw_lock) == 0, RuntimeError, "pthread_rwlock_unlock");
 }
 
-Condition* ReentrantReadLock_newCondition(ReentrantReadLock* self) {
+Condition ReentrantReadLock_newCondition(ReentrantReadLock* self) {
 	check(0, UnsupportedOperationException, "ReentrantReadLock.newCondition()");
-	return NULL;
+	return (Condition){0};
 }
 
 void ReentrantWriteLock_new(ReentrantWriteLock* self, pthread_rwlock_t* rw_lock) {
@@ -107,8 +109,8 @@ void ReentrantWriteLock_unlock(ReentrantWriteLock* self) {
 	check(pthread_rwlock_unlock(self->_rw_lock) == 0, RuntimeError, "pthread_rwlock_unlock");
 }
 
-Condition* ReentrantWriteLock_newCondition(ReentrantWriteLock* self) {
+Condition ReentrantWriteLock_newCondition(ReentrantWriteLock* self) {
 	check(0, UnsupportedOperationException, "ReentrantWriteLock.newCondition()");
-	return NULL;
+	return (Condition){0};
 }
 

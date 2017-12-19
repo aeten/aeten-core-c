@@ -3,6 +3,7 @@
 #include <sys/sysinfo.h>
 #include <pthread.h>
 
+#define impl
 #include "aeten/concurrent/posix/PThread.h"
  
 #define import
@@ -10,25 +11,27 @@
 #include "aeten/concurrent/Lock.h"
 #include "aeten/concurrent/Condition.h"
 #include "aeten/concurrent/posix/ReentrantLock.h"
+#include "aeten/concurrent/posix/ReentrantLockCondition.h"
 
 /*!
 @startuml
 !include Object.c
 !include Callable.c
 !include aeten/concurrent/Thread.c
-!include aeten/concurrent/Lock.c
+!include aeten/concurrent/posix/ReentrantLock.c!ReentrantLock
+!include aeten/concurrent/posix/ReentrantLock.c!ReentrantLockCondition
 namespace aeten.concurrent.posix {
 	class PThread<T> implements aeten.concurrent.Thread {
-		+ {static} PThread(char *name, Callable *task, bool loop) <<constructor>>
-		+ {static} withPriorityAndAffinity(char *name, Callable *task, bool loop, int priority, int scheduler, int cpu_affinity, bool detached) <<constructor>>
-		+ {static} withAttr(char *name, Callable *task, bool loop, pthread_attr_t *attr) <<constructor>>
+        + {static} PThread(char *name, Callable task, bool loop) <<constructor>>
+        + {static} withPriorityAndAffinity(char *name, Callable task, bool loop, int priority, int scheduler, int cpu_affinity, bool detached) <<constructor>>
+        + {static} withAttr(char *name, Callable task, bool loop, pthread_attr_t *attr) <<constructor>>
 		- name: char*
 		- thread: pthread_t
 		- attr: pthread_attr_t
-		- lock: Lock*
-		- started: Condition*
-		- stopped: Condition*
-		- task: Callable*
+        - lock: ReentrantLock
+        - started: ReentrantLockCondition
+        - stopped: ReentrantLockCondition
+        - task: Callable
 		- run: bool <<volatile>>
 		- running: bool
 	}
@@ -39,13 +42,13 @@ namespace aeten.concurrent.posix {
 static void* thread_task(void* arg);
 static inline void set_cpu_affinity(PThread *self, char *name, pthread_attr_t *attr, int cpu_affinity);
 
-void PThread_new(PThread *self, char *name, Callable *task, bool loop) {
+void PThread_new(PThread *self, char *name, Callable task, bool loop) {
 	pthread_attr_t attr;
 	check(pthread_attr_init(&attr) == 0, PThreadException, "Unable to init attributes for thread %s", name);
 	PThread_new_withAttr(self, name, task, loop, &attr);
 }
 
-void PThread_new_withPriorityAndAffinity(PThread *self, char *name, Callable *task, bool loop, int priority, int scheduler, int cpu_affinity, bool detached) {
+void PThread_new_withPriorityAndAffinity(PThread *self, char *name, Callable task, bool loop, int priority, int scheduler, int cpu_affinity, bool detached) {
 	pthread_attr_t attr;
 	struct sched_param sched;
 	check(pthread_attr_init(&attr) == 0, PThreadException, "Unable to init attributes for thread %s", name);
@@ -56,20 +59,20 @@ void PThread_new_withPriorityAndAffinity(PThread *self, char *name, Callable *ta
 	PThread_new_withAttr(self, name, task, loop, &attr);
 }
 
-void PThread_new_withAttr(PThread *self, char *name, Callable *task, bool loop, pthread_attr_t *attr) {
+void PThread_new_withAttr(PThread *self, char *name, Callable task, bool loop, pthread_attr_t *attr) {
 	self->_attr = *attr;
 	self->_name = strdup(name);
 	self->_task = task;
 	self->_run = loop;
-	self->_lock = new_ReentrantLock();
-	self->_started = Lock_newCondition(self->_lock);
-	self->_stopped = Lock_newCondition(self->_lock);
+    init_ReentrantLock(&self->_lock);
+    init_ReentrantLockCondition(&self->_started, &self->_lock._mutex);
+    init_ReentrantLockCondition(&self->_stopped, &self->_lock._mutex);
 }
 
 void PThread_start(PThread *self) {
-	Lock_lock(self->_lock);
+    ReentrantLock_lock(&self->_lock);
 	check(pthread_create(&self->_thread, &self->_attr, &thread_task, self) != 0, PThreadException, "Unable to create thread %s", self->_name);
-	Lock_unlock(self->_lock);
+    ReentrantLock_unlock(&self->_lock);
 }
 
 void PThread_stop(PThread *self) {
@@ -87,18 +90,18 @@ void *thread_task(void* arg) {
 	void *retval;
 	check(pthread_setname_np(self->_thread, self->_name) != 0, PThreadException, "Unable to rename thread to %s", self->_name);
 	do {
-		Lock_lock(self->_lock);
+        ReentrantLock_lock(&self->_lock);
 		if (self->_running == false) {
 			self->_running = true;
-			Condition_signalAll(self->_started);
+            ReentrantLockCondition_signalAll(&self->_started);
 		}
-		Lock_unlock(self->_lock);
-		retval = Callable_call(self->_task);
+        ReentrantLock_unlock(&self->_lock);
+        retval = Callable_call(self->_task);
 	} while(self->_run);
-	Lock_lock(self->_lock);
+    ReentrantLock_lock(&self->_lock);
 	self->_running = false;
-	Condition_signalAll(self->_stopped);
-	Lock_unlock(self->_lock);
+    ReentrantLockCondition_signalAll(&self->_stopped);
+    ReentrantLock_unlock(&self->_lock);
 	return retval;
 }
 

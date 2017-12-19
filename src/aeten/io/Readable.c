@@ -5,7 +5,7 @@
 !include ByteBuffer.c
 namespace aeten.io {
 	interface Readable {
-		int read(ByteBuffer *dst)
+		int read(ByteBuffer dst)
 	}
 }
 @enduml

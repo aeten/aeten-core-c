@@ -6,14 +6,14 @@
 !include Collection.c
 !include Set.c
 namespace aeten {
-	interface Map<K,V> {
-		+ V* get(K* key)
-		+ V* put(K* key, V* value) <<default>> <<optional>>
-		+ V* remove(K* key) <<default>> <<optional>>
+    interface Map<K extends Object,V extends Object> {
+        + V get(K key)
+        + V put(K key, V value) <<default>> <<optional>>
+        + V remove(K key) <<default>> <<optional>>
 		+ size_t size()
-		+ Collection<V>* values()
-		+ Set<MapEntry<K,V>>* entrySet()
-		+ Set<K>* keySet()
+        + Collection<V> values()
+        + Set<MapEntry<K,V>> entrySet()
+        + Set<K> keySet()
 	}
 	note right of Map::get
 		Returns the value to which the specified key is mapped, or null if this map contains no mapping for the key.
@@ -28,12 +28,12 @@ namespace aeten {
 @enduml
 */
 
-void* Map_put(Map* map, void *key, void *value) {
+aeten_Object Map_put(Map* map, aeten_Object key, aeten_Object value) {
 	check(0, UnsupportedOperationException, "Map.put()");
-	return NULL;
+	return (aeten_Object){0};
 }
 
-void* Map_remove(Map* map, void *key) {
+aeten_Object Map_remove(Map* map, aeten_Object key) {
 	check(0, UnsupportedOperationException, "Map.remove()");
-	return NULL;
+	return (aeten_Object){0};
 }

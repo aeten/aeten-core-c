@@ -1,12 +1,15 @@
 #include "Collection.h"
 
+#define import
+#include "Object.h"
+
 /*
 @startuml
 !include Iterable.c
 namespace aeten {
-	interface Collection<T> extends Iterable {
-		+ bool add(T* element) <<default>> <<optional>>
-		+ bool remove(T* element) <<default>> <<optional>>
+	interface Collection<T extends Object> extends Iterable {
+		+ bool add(T element) <<default>> <<optional>>
+		+ bool remove(T element) <<default>> <<optional>>
 		+ size_t size()
 	}
 	note right of Collection::add
@@ -22,12 +25,12 @@ namespace aeten {
 @enduml
 */
 
-bool Collection_add(Collection* collection, void *element) {
-	check(0, UnsupportedOperationException, "Collection.add(T* element)");
+bool Collection_add(Collection *collection, Object element) {
+	check(0, UnsupportedOperationException, "Collection.add(Object element)");
 	return false;
 }
 
-bool Collection_remove(Collection* collection, void *element) {
-	check(0, UnsupportedOperationException, "Collection.remove(T* element)");
+bool Collection_remove(Collection *collection, Object element) {
+	check(0, UnsupportedOperationException, "Collection.remove(Object element)");
 	return false;
 }

@@ -1,16 +1,18 @@
 #include "Integer.h"
 
 #define import
+#include "Object.h"
 #include "Number.h"
 #include "Hash.h"
 
-/*
+/*!
 @startuml
 !include Number.c
 namespace aeten {
 	class Integer implements Number {
 		+ {static} Integer(int value) <<constructor>>
-		+ {static} fromNumber(Number* value) <<constructor>>
+		+ {static} fromNumber(Number value) <<constructor>>
+		+ bool equals(Object* other) <<override>>
 		+ uint64_t hashCode() <<override>>
 		- value: int
 	}
@@ -24,7 +26,7 @@ void Integer_new(Integer* self, int value) {
 	self->_value = value;
 }
 
-void Integer_new_fromNumber(Integer* self, aeten_Number *value) {
+void Integer_new_fromNumber(Integer* self, aeten_Number value) {
 	self->_value = Number_signedValue(value);
 }
 
@@ -54,4 +56,8 @@ double Integer_doubleValue(Integer* self) {
 
 uint64_t Integer_hashCode(Integer* self) {
 	return Hash_hash64(self->_value, DEFAULT_HASH_BITS);
+}
+
+bool Integer_equals(Integer* self, Object *other) {
+	return Number_signedValue(Number_dynamicCast(*other)) == self->_value;
 }

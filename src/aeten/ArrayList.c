@@ -11,16 +11,15 @@
 !include Object.c
 !include List.c
 namespace aeten {
-	class ArrayList<T> implements List {
+	class ArrayList<T extends Object> implements List {
 		- capacity : size_t
 		- size : size_t
-		- element_size : size_t
-		- elements : void*
+		- elements : T[]
 
-		+ {static} ArrayList(size_t initial_capacity, size_t element_size) <<constructor>>
-		+ bool add(T* element) <<override>>
+		+ {static} ArrayList(size_t initial_capacity) <<constructor>>
+		+ bool add(T element) <<override>>
 		+ removeAt(size_t position) <<override>>
-		+ set(size_t position, T* element) <<override>>
+		+ set(size_t position, T element) <<override>>
 		# finalize() <<override>>
 	}
 	note right of ArrayList::ArrayList
@@ -30,14 +29,13 @@ namespace aeten {
 @enduml
 */
 
-void ArrayList_new(ArrayList *self, size_t initial_capacity, size_t element_size) {
+void ArrayList_new(ArrayList *self, size_t initial_capacity) {
 	if (initial_capacity>0) {
-		self->_elements = malloc(initial_capacity * element_size);
+		self->_elements = malloc(initial_capacity);
 		check(self->_elements != NULL, NoSuchMemoryError, "initial_capacity=%zu", initial_capacity);
 	} else {
 		self->_elements = NULL;
 	}
-	self->_element_size = element_size;
 	self->_capacity = initial_capacity;
 	self->_size = 0;
 }
@@ -49,49 +47,49 @@ void ArrayList_finalize(ArrayList *self) {
 	}
 }
 
-void ArrayList_set(ArrayList *self, size_t position, void *element) {
+void ArrayList_set(ArrayList *self, size_t position, Object element) {
 	check(position < self->_size, IndexOutOfBoundException, "position=%zu; array.length=%zu", position, self->_size);
-	memcpy(((char*)self->_elements) + (position * self->_element_size), element, self->_element_size);
+	self->_elements[position] = element;
 }
 
 void ArrayList_removeAt(ArrayList *self, size_t position) {
 	check(position < self->_size, IndexOutOfBoundException, "position=%zu; array.length=%zu", position, self->_size);
-	void *dst = ((char*)self->_elements) + (position * self->_element_size);
+	void *dst = ((char*)self->_elements) + (position * sizeof(Object));
 	if (position < (self->_size-1)) {
-		void *src = ((char*)self->_elements) + ((1 + position) * self->_element_size);
-		size_t size = (self->_size - position) * self->_element_size;
+		void *src = ((uint8_t*)self->_elements) + ((1 + position) * sizeof(Object));
+		size_t size = (self->_size - position) * sizeof(Object);
 		memmove(dst, src, size);
-		memset(((char*)self->_elements) + ((self->_size - 2) * self->_element_size), 0x0, self->_element_size);
+		memset(((uint8_t*)self->_elements) + ((self->_size - 2) * sizeof(Object)), 0x0, sizeof(Object));
 	} else {
-		memset(dst, 0x0, self->_element_size);
+		memset(dst, 0x0, sizeof(Object));
 	}
 	--self->_size;
 }
 
 
-bool ArrayList_add(ArrayList *self, void *element) {
+bool ArrayList_add(ArrayList *self, Object element) {
 	if (self->_capacity == self->_size) {
 		unsigned int capacity = ((self->_capacity * 3) / 2) + 1;
-		self->_elements = realloc(self->_elements, capacity * self->_element_size);
+		self->_elements = realloc(self->_elements, capacity * sizeof(Object));
 		check(self->_elements != NULL, NoSuchMemoryError, "capacity=%u", capacity);
 		self->_capacity = capacity;
 	}
-	memcpy(((char*)self->_elements) + (self->_size++ * self->_element_size), element, self->_element_size);
+	self->_elements[self->_size++] = element;
 	return true;
 }
 
-void *ArrayList_get(ArrayList *self, size_t position) {
+Object ArrayList_get(ArrayList *self, size_t position) {
 	check(position < self->_size, IndexOutOfBoundException, "position=%zu; array.length=%zu", position, self->_size);
-	return (void*)(((char*)self->_elements) + (position * self->_element_size));
+	return self->_elements[position];
 }
 
 size_t ArrayList_size(ArrayList *self) {
 	return self->_size;
 }
 
-Iterator *ArrayList_iterator(ArrayList *self) {
+Iterator ArrayList_iterator(ArrayList *self) {
 	// TODO
 	check(0, NotImplementedOperationException, "ArrayList.iterator()");
-	return NULL;
+	return (Iterator){0};
 }
 

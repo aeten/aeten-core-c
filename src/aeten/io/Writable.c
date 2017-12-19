@@ -5,7 +5,7 @@
 !include ByteBuffer.c
 namespace aeten.io {
 	interface Writable {
-		int write(ByteBuffer *src)
+		int write(ByteBuffer src)
 	}
 }
 @enduml

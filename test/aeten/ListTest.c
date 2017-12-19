@@ -5,6 +5,9 @@
 #include "ListTest.h"
 
 #define import
+#include "Object.h"
+#include "Integer.h"
+#include "Number.h"
 #include "ArrayList.h"
 #include "List.h"
 #include "test/Testable.h"
@@ -16,29 +19,29 @@
 !include aeten/ArrayList.c
 namespace aeten {
 	class ListTest implements aeten.test.Testable {
-		{static} + ListTest(List* list) <<constructor>>
+		{static} + ListTest(List list) <<constructor>>
 
 		{static} - counter: unsigned
-		- list: List *
+		- list: List
 	}
 } 
 @enduml
 */
 
-#define LIST(list, ...) { #list, new_##list( __VA_ARGS__ ) }
+#define LIST(list, ...) { #list, List_cast(new_##list( __VA_ARGS__ )) }
 struct test_list {
 	char *name;
-	List *list;
+    List list;
 };
 
 int main(int argc, char** argv) {
 	_counter=0;
 	bool result;
 
-	struct test_list list[] = { LIST(ArrayList, 0, sizeof(void*)) };
+	struct test_list list[] = { LIST(ArrayList, 0) };
 
 	for (int i=0; i<(sizeof(list)/sizeof(struct test_list)); ++i) {
-		Testable* test = new_ListTest(list[i].list);
+		Testable test = Testable_cast(new_ListTest(list[i].list));
 		result = Testable_test(test);
 		if (!result) {
 			printf("[ FAIL ]");
@@ -48,11 +51,12 @@ int main(int argc, char** argv) {
 		}
 		printf(" Test %s of %s\n", argv[0], list[i].name);
 		List_delete(list[i].list);
-	}
+		Testable_delete(test);
+    }
 	return _counter;
 }
 
-void ListTest_new(ListTest* self, List* list) {
+void ListTest_new(ListTest* self, List list) {
 	self->_list = list;
 }
 
@@ -80,15 +84,19 @@ static void catch_segv(bool iscatch) {
 }
 
 bool ListTest_test(ListTest* self) {
-	List *list = self->_list;
-	int number;
+	List list = self->_list;
 	int i;
+	Integer number[10];
 	for (i=0; i<10; ++i) {
-		number = i;
-		List_add(list, &number);
-		number = *(int*)List_get(list, i);
-		if (number != i) {
-			fprintf(stderr, "[ FAIL ] List_get(list, %d) != %d\n", i, i);
+		init_Integer(&number[i], i);
+		Integer *integer = &number[i];
+		Integer_signedValue(integer);
+		Object n = Object_cast(&number[i]);
+		List_add(list, n);
+		n = List_get(list, i);
+		Number num = Number_staticCast(n);
+		if (Number_signedValue(num) != i) {
+			fprintf(stderr, "[ FAIL ] List_get(list, %d) != %d\n", Number_signedValue(num), i);
 			return false;
 		}
 	}
@@ -96,9 +104,9 @@ bool ListTest_test(ListTest* self) {
 	catch_segv(1);
 	if (setjmp(context)) {
 		catch_segv(0);
-		return (i != number);
+		return (i != Integer_signedValue(&number[i]));
 	}
-	number = *((int*)List_get(list, i));
+	List_get(list, i);
 	catch_segv(0);
 	return false;
 }

@@ -8,7 +8,7 @@
 #include "ReentrantLockCondition.h"
 
 /*
-@startuml ReentrantLock
+@startuml(id=ReentrantLock) ReentrantLock
 !include concurrent/Lock.c
 !include concurrent/Condition.c
 namespace aeten.concurrent.posix {
@@ -20,7 +20,7 @@ namespace aeten.concurrent.posix {
 }
 @enduml
 
-@startuml ReentrantLockCondition
+@startuml(id=ReentrantLockCondition) ReentrantLockCondition
 !include Object.c
 !include concurrent/Condition.c
 namespace aeten.concurrent.posix {
@@ -62,8 +62,8 @@ void ReentrantLock_unlock(ReentrantLock* self) {
 	pthread_mutex_unlock(&self->_mutex);
 }
 
-Condition *ReentrantLock_newCondition(ReentrantLock* self) {
-	return new_ReentrantLockCondition(&self->_mutex);
+Condition ReentrantLock_newCondition(ReentrantLock* self) {
+    return Condition_cast(new_ReentrantLockCondition(&self->_mutex));
 }
 
 void ReentrantLockCondition_new(ReentrantLockCondition* self, pthread_mutex_t *mutex) {

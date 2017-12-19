@@ -13,11 +13,11 @@
 !define aeten_io_SocketChannel
 namespace aeten.io {
 	interface SocketChannel {
-		+ SocketChannel* bind(SocketAddress* local)
-		+ bool connect(SocketAddress* remote)
-		+ SocketAddress* getLocalAddress()
+		+ SocketChannel bind(SocketAddress local)
+		+ bool connect(SocketAddress remote)
+		+ SocketAddress getLocalAddress()
 
-		+ {static} SocketChannel* open()
+		+ {static} SocketChannel open()
 	}
 	SocketChannel -|> Readable
 	SocketChannel -|> Writable
@@ -27,6 +27,6 @@ namespace aeten.io {
 @enduml
 */
 
-SocketChannel *SocketChannel_open() {
+SocketChannel SocketChannel_open() {
 	return SelectorService_openSocketChannel(SelectorService_provider());
 }

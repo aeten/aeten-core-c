@@ -7,8 +7,8 @@
 @startuml ByteBuffer
 namespace aeten.io {
 	interface ByteBuffer extends Buffer {
-		{static} ByteBuffer* allocateDirect(size_t capacity)
-		{static} ByteBuffer* wrap(uint8_t* src, size_t offset, size_t length)
+		{static} ByteBuffer allocateDirect(size_t capacity)
+		{static} ByteBuffer wrap(uint8_t* src, size_t offset, size_t length)
 		get(uint8_t* dst, size_t offset, size_t length)
 		uint8_t getByte(size_t index)
 		put(uint8_t* src, size_t offset, size_t length)
@@ -33,12 +33,12 @@ namespace aeten.io {
 @enduml
 */
 
-ByteBuffer *ByteBuffer_allocateDirect(size_t capacity) {
-	return new_aeten_io_DirectByteBuffer(capacity);
+ByteBuffer ByteBuffer_allocateDirect(size_t capacity) {
+	return ByteBuffer_cast(new_aeten_io_DirectByteBuffer(capacity));
 }
 
-ByteBuffer *ByteBuffer_wrap(uint8_t* src, size_t offset, size_t length) {
-	return new_aeten_io_DirectByteBuffer_from(src, offset, length);
+ByteBuffer ByteBuffer_wrap(uint8_t* src, size_t offset, size_t length) {
+	return ByteBuffer_cast(new_aeten_io_DirectByteBuffer_from(src, offset, length));
 }
 
 void DirectByteBuffer_new(DirectByteBuffer *self, size_t capacity) {

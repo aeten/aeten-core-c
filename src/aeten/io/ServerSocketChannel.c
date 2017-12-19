@@ -12,8 +12,8 @@
 !define aeten_io_ServerSocketChannel
 namespace aeten.io {
 	interface ServerSocketChannel {
-		+ SocketChannel* bind(SocketAddress* local, int backlog)
-		+ {static} ServerSocketChannel* open()
+		+ SocketChannel bind(SocketAddress local, int backlog)
+		+ {static} ServerSocketChannel open()
 	}
 	ServerSocketChannel -|> Server
 	ServerSocketChannel -|> SelectableChannel
@@ -22,6 +22,6 @@ namespace aeten.io {
 @enduml
 */
 
-ServerSocketChannel *ServerSocketChannel_open() {
+ServerSocketChannel ServerSocketChannel_open() {
 	return SelectorService_openServerSocketChannel(SelectorService_provider());
 }

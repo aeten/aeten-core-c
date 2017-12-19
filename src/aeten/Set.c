@@ -1,13 +1,16 @@
 #include "Set.h"
 
+#define import
+#include "Object.h"
+
 /*
 @startuml
 !include Object.c
 !include Collection.c
 namespace aeten {
-	interface Set<T> extends Collection {
-		+ bool contains(T* element)
-		+ bool add(T* element) <<override>> <<default>> <<optional>>
+    interface Set<T extends Object> extends Collection {
+        + bool contains(T element)
+        + bool add(T element) <<override>> <<default>> <<optional>>
 	}
 	note right of Set::contains
 		Returns true if this set contains the specified element.
@@ -19,7 +22,7 @@ namespace aeten {
 @enduml
 */
 
-bool Set_add(Set* self, void *element) {
+bool Set_add(Set* self, Object element) {
 	check(0, UnsupportedOperationException, "Set.add()");
 	return false;
 }

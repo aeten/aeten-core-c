@@ -1,14 +1,14 @@
 #include "List.h"
 
-/*
+/*!
 @startuml
 !include Object.c
 !include Collection.c
 namespace aeten {
-	interface List<T> extends Collection {
-		+ T* get(size_t position)
+    interface List<T extends Object> extends Collection {
+        + T get(size_t position)
 		+ removeAt(size_t position) <<default>> <<optional>>
-		+ set(size_t position, T* element) <<default>> <<optional>>
+        + set(size_t position, T element) <<default>> <<optional>>
 	}
 	note right of List::get
 		Return the element at the mentioned position.
@@ -20,7 +20,7 @@ namespace aeten {
 @enduml
 */
 
-void List_set(List* list, size_t position, void *element) {
+void List_set(List* list, size_t position, aeten_Object element) {
 	check(0, UnsupportedOperationException, "Last.set()");
 }
 
