@@ -1,5 +1,6 @@
 #include <errno.h>
 #include <sys/select.h>
+#include <unistd.h>
 
 #define implements
 #include "SelectorProvider.h"
@@ -294,18 +295,21 @@ SocketAddress SocketChannel_getRemoteAddress(SocketChannel *self) {
 }
 
 bool SocketChannel_connect(SocketChannel *self, SocketAddress remote) {
-	// TODO
+	InetAddress remote_addr = InetSocketAddress_address(InetSocketAddress_dynamicCast(remote));
+	int ret = connect(self->_fd, (struct sockaddr *)InetAddress_address(remote_addr), InetAddress_size(remote_addr));
+	if(ret == 0) {
+		return true;
+	}
+	if (errno == EINPROGRESS) {
+		return false;
+	}
+	// TODO: throw different exception regard to errno
+	check(0, ConnectionException, "Unable to connect to %s (%m)", InetAddress_hostname(remote_addr));
 	return false;
 }
 
 SocketAddress SocketChannel_getLocalAddress(SocketChannel *self) {
-	// TODO
-	return (SocketAddress){0};
-}
-
-aeten_io_SocketChannel SocketChannel_open(SocketChannel *self) {
-	// TODO
-	return (aeten_io_SocketChannel){0};
+	return self->_local;
 }
 
 int SocketChannel_read(SocketChannel *self, aeten_io_ByteBuffer dst) {
@@ -319,12 +323,16 @@ int SocketChannel_write(SocketChannel *self, aeten_io_ByteBuffer src) {
 }
 
 bool SocketChannel_isOpen(SocketChannel *self) {
-	// TODO
-	return false;
+	int error = 0;
+	socklen_t len = sizeof (error);
+	int retval = getsockopt (self->_fd, SOL_SOCKET, SO_ERROR, &error, &len);
+	// TODO: check retval
+	return ((retval == 0) && (error == 0));
 }
 
 void SocketChannel_close(SocketChannel *self) {
-	// TODO
+	close(self->_fd);
+	// TODO: check error
 }
 
 
@@ -355,11 +363,6 @@ aeten_io_ServerSocketChannel ServerSocketChannel_bind(ServerSocketChannel *self,
 	return aeten_io_ServerSocketChannel_cast(self);
 }
 
-aeten_io_ServerSocketChannel ServerSocketChannel_open(ServerSocketChannel* self) {
-	// TODO
-	return aeten_io_ServerSocketChannel_cast(self);
-}
-
 aeten_io_SocketChannel ServerSocketChannel_accept(ServerSocketChannel* self) {
 	InetAddress local_addr = InetSocketAddress_address(InetSocketAddress_dynamicCast(self->_local));
 	self->_peer_address_size = InetAddress_size(local_addr);
@@ -375,12 +378,16 @@ SocketAddress ServerSocketChannel_getLocalAddress(ServerSocketChannel *self) {
 }
 
 bool ServerSocketChannel_isOpen(ServerSocketChannel *self) {
-	// TODO
-	return false;
+	int error = 0;
+	socklen_t len = sizeof (error);
+	int retval = getsockopt (self->_fd, SOL_SOCKET, SO_ERROR, &error, &len);
+	// TODO: check retval
+	return ((retval == 0) && (error == 0));
 }
 
 void ServerSocketChannel_close(ServerSocketChannel *self) {
-	// TODO
+	close(self->_fd);
+	// TODO: check error
 }
 
 /* SelectKeySet */
@@ -394,7 +401,6 @@ bool SelectKeySet_contains(SelectKeySet *self, SelectionKey key) {
 }
 
 size_t SelectKeySet_size(SelectKeySet *self) {
-	// TODO
 	return self->_selector->_size;
 }
 
