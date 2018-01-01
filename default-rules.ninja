@@ -72,4 +72,4 @@ rule puml2x
 
 rule xmi2c
     description = Generate C file '${out}' from XMI '${in}'
-    command = ${xmi2c} --mode simple --in ${in} $$(echo ${out}|sed 's/\(^\)\|\( \)/ --out /g')
+    command = ${xmi2c} --mode simple --source-path '${srcdir}:${testdir}' --in ${in} $$(echo ${out}|sed 's/\(^\)\|\( \)/ --out /g')

@@ -10,7 +10,7 @@ namespace aeten {
 		# finalize() <<default>>
 		+ delete() <<default>>
 		+ uint64_t hashCode() <<default>>
-		+ bool equals(Object* other) <<default>>
+		+ bool equals(Object other) <<default>>
 
 		+ {static} bool isObject(void* pointer)
 		+ {static} bool isNull(Object object)
@@ -40,11 +40,8 @@ void Object_delete(Object* self) {
 	}
 }
 
-bool Object_equals(Object *self, Object *other) {
-	return ((self == other) ||
-	        (self->_object_ == other->_object_) ||
-	        ((other != NULL) && (self->_object_ == other->_object_)) ||
-	        ((other == NULL) && (self->_object_ == NULL)));
+bool Object_equals(Object *self, Object other) {
+	return (self->_object_ == other._object_);
 }
 
 bool Object_isNull(Object object) {

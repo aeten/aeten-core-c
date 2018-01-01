@@ -95,7 +95,7 @@ static Object get_hashed(HashMap *self, Object *key, uint64_t hash, int *index) 
 		entry = List_get(self->_hash_array[idx], i);
 		if(!isNull(&entry)) {
 			HashMapEntry *hm_entry = (HashMapEntry*)entry._object_;
-			if (Object_equals(*key, &hm_entry->_key)) {
+			if (Object_equals(*key, hm_entry->_key)) {
 				if (index != NULL) *index = i;
 				return hm_entry->_value;
 			}

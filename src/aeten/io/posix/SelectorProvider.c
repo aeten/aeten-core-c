@@ -1,9 +1,13 @@
 #include <errno.h>
 #include <sys/select.h>
 
+#define implements
 #include "SelectorProvider.h"
+#define implements
 #include "Selector.h"
+#define implements
 #include "SocketChannel.h"
+#define implements
 #include "ServerSocketChannel.h"
 
 #define import
@@ -11,6 +15,7 @@
 #include "SelectKey.h"
 #include "SelectKeySet.h"
 #include "SelectKeySetIterator.h"
+#include "InetSocketAddress.h"
 #include "List.h"
 #include "Set.h"
 #include "ArrayList.h"
@@ -18,9 +23,10 @@
 #include "aeten/io/SelectorService.h"
 #include "aeten/io/SelectionKey.h"
 #include "aeten/io/SocketAddress.h"
+#include "aeten/io/InetAddress.h"
 #include "aeten/Iterator.h"
 
-/*!
+/*
 @startuml(id=SelectorProvider) SelectorProvider
 !include Object.c
 !include aeten/io/SelectorService.c
@@ -61,6 +67,7 @@ namespace aeten.io.posix {
 
 @startuml(id=SocketChannel) SocketChannel
 !include Object.c
+!include aeten/io/SocketAddress.c
 !include aeten/io/SocketChannel.c
 !include ArrayList.c
 !include SelectorProvider.c
@@ -68,11 +75,13 @@ namespace aeten.io.posix {
 !define aeten_io_posix_SocketChannel
 namespace aeten.io.posix {
 	class SocketChannel implements aeten.io.SocketChannel {
-		+ {static} SocketChannel(SelectorProvider *provider) <<constructor>>
+		+ {static} SocketChannel(SelectorProvider *provider, int fd, struct sockaddr_in* local, struct sockaddr_in* peer) <<constructor>>
 
 		- provider: SelectorProvider*
 		- fd: int
 		- keys: ArrayList*
+		- local: SocketAddress
+		- peer: SocketAddress
 	}
 }
 !endif
@@ -92,6 +101,8 @@ namespace aeten.io.posix {
 		- provider: SelectorProvider*
 		- fd: int
 		- keys: ArrayList*
+		- local: SocketAddress
+		- peer_address_size: socklen_t
 	}
 }
 !endif
@@ -100,13 +111,12 @@ namespace aeten.io.posix {
 @startuml(id=SelectKeySet) SelectKeySet
 !ifndef aeten_io_posix_SelectKeySet
 !define aeten_io_posix_SelectKeySet
-!include SelectorProvider.c!SelectKey
 !include Object.c
-!define T SelectionKey
+!include aeten/io/SelectionKey.c
 !include Set.c
 !include SelectorProvider.c!Selector
 namespace aeten.io.posix {
-	class SelectKeySet implements aeten.Set {
+	class SelectKeySet<T extends SelectionKey> implements aeten.Set {
 		+ {static} SelectKeySet(aeten_io_posix_Selector* selector) <<constructor>>
 		+ finalize() <<override>>
 
@@ -141,9 +151,9 @@ namespace aeten.io.posix {
 !include Object.c
 !ifndef aeten_io_posix_SelectKeySetIterator
 !define aeten_io_posix_SelectKeySetIterator
-!define T SelectionKey
-!include Iterator.c
+!include aeten/io/SelectionKey.c
 !include SelectorProvider.c!SelectKeySet
+!include Iterator.c
 namespace aeten.io.posix {
 	class SelectKeySetIterator<T extends SelectionKey> implements aeten.Iterator {
 		+ {static} SelectKeySetIterator(SelectKeySet* selection) <<constructor>>
@@ -164,7 +174,7 @@ void SelectorProvider_new(SelectorProvider *self) {
 }
 
 aeten_io_SocketChannel SelectorProvider_openSocketChannel(SelectorProvider *self) {
-	return aeten_io_SocketChannel_cast(new_SocketChannel(self));
+	return aeten_io_SocketChannel_cast(new_SocketChannel(self, -1, NULL, NULL));
 }
 
 aeten_io_ServerSocketChannel SelectorProvider_openServerSocketChannel(SelectorProvider *self) {
@@ -256,9 +266,12 @@ Set Selector_selectedKeys(Selector* self) {
 }
 
 /* SocketChannel */
-void SocketChannel_new(SocketChannel *self, SelectorProvider *provider) {
+void SocketChannel_new(SocketChannel *self, SelectorProvider *provider, int fd, struct sockaddr_in *local, struct sockaddr_in *peer) {
 	self->_provider = provider;
-	self->_fd = -1;
+	self->_keys = NULL;
+	self->_fd = fd;
+	self->_local = SocketAddress_cast(new_InetSocketAddress_fromSockAddr(local));
+	self->_peer = SocketAddress_cast(new_InetSocketAddress_fromSockAddr(peer));
 }
 
 SelectorService SocketChannel_provider(SocketChannel *self) {
@@ -270,8 +283,14 @@ aeten_io_SelectionKey SocketChannel_registerTo(SocketChannel *self, aeten_io_Sel
 }
 
 aeten_io_SocketChannel SocketChannel_bind(SocketChannel *self, SocketAddress local) {
-	// TODO
-	return (aeten_io_SocketChannel){0};
+	self->_local = local;
+	InetAddress local_addr = InetSocketAddress_address(InetSocketAddress_dynamicCast(local));
+	check(0 == bind(self->_fd, (const struct sockaddr *)InetAddress_address(local_addr), InetAddress_size(local_addr)), IOException, "%m (errno=%u)", errno);
+	return aeten_io_SocketChannel_cast(self);
+}
+
+SocketAddress SocketChannel_getRemoteAddress(SocketChannel *self) {
+	return self->_peer;
 }
 
 bool SocketChannel_connect(SocketChannel *self, SocketAddress remote) {
@@ -312,7 +331,9 @@ void SocketChannel_close(SocketChannel *self) {
 /* ServerSocketChannel */
 void ServerSocketChannel_new(ServerSocketChannel *self, SelectorProvider *provider) {
 	self->_provider = provider;
+	self->_keys = NULL;
 	self->_fd = -1;
+	self->_peer_address_size = 0;
 }
 
 SelectorService ServerSocketChannel_provider(ServerSocketChannel *self) {
@@ -323,19 +344,34 @@ SelectionKey ServerSocketChannel_registerTo(ServerSocketChannel *self, aeten_io_
 	return registerKey(&self->_keys, Selector_dynamicCast(sel), SelectableChannel_cast(self), self->_fd, interest, attachment);
 }
 
-aeten_io_SocketChannel ServerSocketChannel_bind(ServerSocketChannel *self, aeten_io_SocketAddress local, int backlog) {
-	// TODO
-	return (aeten_io_SocketChannel){0};
+aeten_io_ServerSocketChannel ServerSocketChannel_bind(ServerSocketChannel *self, aeten_io_SocketAddress local, int  backlog) {
+	self->_local = local;
+	InetAddress local_addr = InetSocketAddress_address(InetSocketAddress_dynamicCast(local));
+	socklen_t addr_size = InetAddress_size(local_addr);
+	check(0 == bind(self->_fd, (const struct sockaddr *)InetAddress_address(local_addr), addr_size), IOException, "%m (errno=%u)", errno);
+	check(0 == listen(self->_fd, backlog), IOException, "%m (errno=%u)", errno) {
+		self->_peer_address_size = addr_size;
+	}
+	return aeten_io_ServerSocketChannel_cast(self);
 }
 
 aeten_io_ServerSocketChannel ServerSocketChannel_open(ServerSocketChannel* self) {
 	// TODO
-	return (aeten_io_ServerSocketChannel){0};
+	return aeten_io_ServerSocketChannel_cast(self);
 }
 
-aeten_io_SocketChannel ServerSocketChannel_accept(ServerSocketChannel *self) {
-	// TODO
-	return (aeten_io_SocketChannel){0};
+aeten_io_SocketChannel ServerSocketChannel_accept(ServerSocketChannel* self) {
+	InetAddress local_addr = InetSocketAddress_address(InetSocketAddress_dynamicCast(self->_local));
+	self->_peer_address_size = InetAddress_size(local_addr);
+	uint8_t addr[self->_peer_address_size];
+	int client_fd = accept(self->_fd, (struct sockaddr *)&addr, &self->_peer_address_size);
+	check(client_fd != -1, IOException, "%m (errno=%u)", errno);
+	// TODO: switch protocol (sockaddr_in, sockaddr_un...)
+	return aeten_io_SocketChannel_cast(new_SocketChannel(self->_provider, client_fd, (struct sockaddr_in*)InetAddress_address(local_addr), (struct sockaddr_in*)addr));
+}
+
+SocketAddress ServerSocketChannel_getLocalAddress(ServerSocketChannel *self) {
+	return self->_local;
 }
 
 bool ServerSocketChannel_isOpen(ServerSocketChannel *self) {
@@ -352,7 +388,7 @@ void SelectKeySet_new(SelectKeySet *self, Selector *selector) {
 	self->_selector = selector;
 }
 
-bool SelectKeySet_contains(SelectKeySet *self, aeten_io_SocketChannel key) {
+bool SelectKeySet_contains(SelectKeySet *self, SelectionKey key) {
 	// TODO
 	return false;
 }

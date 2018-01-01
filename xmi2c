@@ -17,7 +17,8 @@ $(${AETEN_CLI_DIR}/aeten-ads init - -- "${@}" << EOF
 #DESCRIPTION: Generates C file (header and a source skeleton) from UML XMI descriplion file.
 mode <mode>: The generation mode, _simple_ support only one parent per interface whereas _complete_ support several and provides castable ojects (ie. cast a list to iterable).
 !in <file>: The input UML XMI file.
-!out <file>: The output file must be formed of *.h for header or *.c for c file skeleton.
+!out <file>: The output file must be formed of \*.h for header or \*.c for C file skeleton.
+source-path <path>: The sources search path (separated by semicolon \':\').
 version|V: Shows ${PROJECT_NAME} version.
 EOF
 )
@@ -229,7 +230,8 @@ attributes_visitor_init='
 	_type="${_type/«*/}"
 	local _stereotypes="${_attribute/${_name}:${_type}/}"
 	_name="${_name// /}"
-	_type="${_type// /}"
+	_type="${_type%%+( )}"
+	_type="${_type##+( )}"
 	_type=$(full_qualified_type "${_type/\[\]/*}" $(get_class_parameter_types ${CLASS_ID}))
 	local _stereotypes="${_stereotypes//[«»]/ }"
 	local _public
@@ -739,25 +741,33 @@ header_class_visitor() {
 #include <stdint.h>
 #include <stdlib.h>
 
-#include "aeten/lang.h"
+$(
+	if [ ${NAMESPACE} != aeten ]; then
+		echo "#include \"aeten/package.h\""
+	fi
+	_pkg=${NAMESPACE//./\/}
+	for _d in ${SOURCE_PATH//:/ }; do
+		test -f "$_d/$_pkg/package.h" && echo "#include \"$_pkg/package.h\""
+	done
+)
 
 typedef struct _${c_class} ${c_class};
 
 #if defined(impl) || defined(implementation) || defined(implements)
-# ifndef _${C_CLASS^^}_PRIVATE
-#    define _${C_CLASS^^}_PRIVATE
-# endif
-# if defined(implementation)
-#    undef implementation
-# elif defined(implements)
-#    undef implements
-# elif defined(impl)
-#    undef impl
-# endif
+#	ifndef _${C_CLASS^^}_PRIVATE
+#		define _${C_CLASS^^}_PRIVATE
+#	endif
+#	if defined(implementation)
+#		undef implementation
+#	elif defined(implements)
+#		undef implements
+#	elif defined(impl)
+#		undef impl
+#	endif
 #endif
 
 #ifdef import
-#	define _import
+#	define _${C_CLASS}_import
 #	undef import
 #endif
 EOF
@@ -767,9 +777,9 @@ EOF
 		fi
 	done
 	cat - <<EOF
-#ifdef _import
+#ifdef _${C_CLASS}_import
 #	define import
-#	undef _import
+#	undef _${C_CLASS}_import
 #endif
 
 $(for cls in ${CLASS_HIERARCHY}; do
@@ -837,9 +847,12 @@ EOF
 	if [ ${CLASS_TYPE} = interface ]; then
 		cat - <<EOF
 #define ${c_class}_cast(instance) \\
-	((${c_class}){ \\
-		(struct _${c_class}_Class*)&(instance)->_class_->${c_class}, \\
-		(${c_class}*)(instance)->_object_ \\
+	({ \\
+		typeof(instance) _instance_ = instance; \\
+		(${c_class}){ \\
+			(struct _${c_class}_Class*)&_instance_->_class_->${c_class}, \\
+			(${c_class}*)_instance_->_object_ \\
+		}; \\
 	})
 
 #define ${c_class}_staticCast(instance) \\

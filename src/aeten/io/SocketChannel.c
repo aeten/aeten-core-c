@@ -16,6 +16,7 @@ namespace aeten.io {
 		+ SocketChannel bind(SocketAddress local)
 		+ bool connect(SocketAddress remote)
 		+ SocketAddress getLocalAddress()
+		+ SocketAddress getRemoteAddress()
 
 		+ {static} SocketChannel open()
 	}

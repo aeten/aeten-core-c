@@ -12,7 +12,9 @@
 !define aeten_io_ServerSocketChannel
 namespace aeten.io {
 	interface ServerSocketChannel {
-		+ SocketChannel bind(SocketAddress local, int backlog)
+		+ ServerSocketChannel bind(SocketAddress local, int backlog)
+		+ SocketAddress getLocalAddress()
+
 		+ {static} ServerSocketChannel open()
 	}
 	ServerSocketChannel -|> Server

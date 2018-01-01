@@ -12,7 +12,7 @@ namespace aeten {
 	class Integer implements Number {
 		+ {static} Integer(int value) <<constructor>>
 		+ {static} fromNumber(Number value) <<constructor>>
-		+ bool equals(Object* other) <<override>>
+		+ bool equals(Object other) <<override>>
 		+ uint64_t hashCode() <<override>>
 		- value: int
 	}
@@ -58,6 +58,6 @@ uint64_t Integer_hashCode(Integer* self) {
 	return Hash_hash64(self->_value, DEFAULT_HASH_BITS);
 }
 
-bool Integer_equals(Integer* self, Object *other) {
-	return Number_signedValue(Number_dynamicCast(*other)) == self->_value;
+bool Integer_equals(Integer* self, Object other) {
+	return Number_signedValue(Number_dynamicCast(other)) == self->_value;
 }

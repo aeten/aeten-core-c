@@ -75,7 +75,7 @@ bool MapTest_test(MapTest* self) {
 			fprintf(stderr, "[ FAIL ] (Map_get(map, %u) = null)\n", i);
 			return false;
 		}
-		if (!Number_equals(number_get, &Object_cast(&number[i-6139]))) {
+		if (!Number_equals(number_get, Object_cast(&number[i-6139]))) {
 			fprintf(stderr, "[ FAIL ] (Map_get(map, %u) = 0x%lx) != 0x%lx\n", i, Number_unsignedLongValue(number_get), Long_unsignedLongValue(&number[i-6139]));
 			return false;
 		}

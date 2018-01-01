@@ -16,4 +16,5 @@ makefile
 # QtCreator
 *.pro
 *.pro.user
+*.pro.user.*
 .*.swp

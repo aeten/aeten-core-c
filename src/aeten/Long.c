@@ -12,7 +12,7 @@ namespace aeten {
 	class Long implements Number {
 		+ {static} Long(int value) <<constructor>>
 		+ {static} fromNumber(Number value) <<constructor>>
-		+ bool equals(Object* other) <<override>>
+		+ bool equals(Object other) <<override>>
 		+ uint64_t hashCode() <<override>>
 		- value: int64_t
 	}
@@ -58,6 +58,6 @@ uint64_t Long_hashCode(Long* self) {
 	return Hash_hash64(self->_value, DEFAULT_HASH_BITS);
 }
 
-bool Long_equals(Long* self, Object *other) {
-	return Number_signedLongValue(Number_dynamicCast(*other)) == self->_value;
+bool Long_equals(Long* self, Object other) {
+	return Number_signedLongValue(Number_dynamicCast(other)) == self->_value;
 }
