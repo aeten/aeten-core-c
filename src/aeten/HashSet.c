@@ -42,7 +42,7 @@ bool HashSet_contains(HashSet* self, Object element) {
 }
 
 bool HashSet_add(HashSet *self, Object element) {
-	return Set_add(self->_key_set, element);
+	return !Object_isNull(HashMap_put(&self->_map, element, element));
 }
 
 size_t HashSet_size(HashSet* self) {

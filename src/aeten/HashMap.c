@@ -12,6 +12,7 @@
 #include "ArrayList.h"
 #include "HashMapEntry.h"
 #include "HashMapKeySet.h"
+#include "HashMapKeySetIterator.h"
 
 /*! \file
 @startuml HashMap
@@ -30,7 +31,7 @@ namespace aeten {
 		- bits: uint32_t
 		- key_size: size_t
 		- value_size: size_t
-        - hash_array: List*
+		- hash_array: List*
 	}
 }
 @enduml
@@ -56,6 +57,21 @@ namespace aeten {
     class HashMapKeySet<T extends Object> implements Set {
 		+ {static} HashMapKeySet(HashMap* map) <<constructor>>
 		- map: HashMap*
+	}
+}
+@enduml
+
+@startuml HashMapKeySetIterator
+!include Object.c
+!include Set.c
+!include HashMap.c!HashMap
+namespace aeten {
+    class HashMapKeySetIterator<T extends Object> implements Iterator {
+		+ {static} HashMapKeySetIterator(HashMap* map) <<constructor>>
+		- map: HashMap*
+		- next_hash: uint64_t
+		- next_idx: size_t
+		- next: size_t
 	}
 }
 @enduml
@@ -127,7 +143,7 @@ Object HashMap_put(HashMap *self, Object key, Object value) {
 				self->_hash_min = hash;
 				old_max = hash;
 			}
-			size_t size	    = self->_hash_max - self->_hash_min + 1;
+			size_t size	      = self->_hash_max - self->_hash_min + 1;
 			/// @append increase hash array;
             self->_hash_array = realloc(self->_hash_array, size * sizeof(List));
             check(self->_hash_array, HeadAllocationException, "realloc(%zu)", size * sizeof(List));
@@ -192,11 +208,13 @@ size_t HashMap_size(HashMap* self) {
 
 Collection HashMap_values(HashMap* self) {
 	// TODO: Implement
+	check(0, NotImplementedOperationException, "HashMap.values()");
 	return (Collection){0};
 }
 
 Set HashMap_entrySet(HashMap* self) {
 	// TODO: Implement
+	check(0, NotImplementedOperationException, "HashMap.entrySet()");
 	return (Set){0};
 }
 
@@ -221,7 +239,7 @@ void HashMapEntry_setValue(HashMapEntry *self, Object value) {
 	self->_value = value;
 }
 
-/* HashMapKeySet*/
+/* HashMapKeySet */
 void HashMapKeySet_new(HashMapKeySet* self, HashMap *map) {
 	self->_map = map;
 }
@@ -235,6 +253,35 @@ size_t HashMapKeySet_size(HashMapKeySet* self) {
 }
 
 Iterator HashMapKeySet_iterator(HashMapKeySet* self) {
-	// TODO
-	return (Iterator){0};
+	return Iterator_cast(new_HashMapKeySetIterator(self->_map));
+}
+
+/* HashMapKeySetIterator */
+void HashMapKeySetIterator_new(HashMapKeySetIterator* self, HashMap *map) {
+	self->_map       = map;
+	self->_next_hash = map->_hash_min;
+	self->_next_idx  = 0;
+	self->_next      = self->_map->_size == 0 ? 1: 0;
+}
+
+
+bool HashMapKeySetIterator_hasNext(HashMapKeySetIterator* self) {
+	return (self->_next < self->_map->_size);
+}
+
+Object HashMapKeySetIterator_next(HashMapKeySetIterator* self) {
+	while(self->_next_hash <= self->_map->_hash_max) {
+		for(; self->_next_idx < List_size(self->_map->_hash_array[self->_next_hash - self->_map->_hash_min]); ++self->_next_idx) {
+			Object entry = List_get(self->_map->_hash_array[self->_next_idx], self->_next_idx);
+			if(!isNull(&entry)) {
+				++self->_next;
+				++self->_next_idx;
+				HashMapEntry *hm_entry = (HashMapEntry*)entry._object_;
+				return hm_entry->_key;
+			}
+		}
+		++self->_next_hash;
+		self->_next_idx = 0;
+	}
+	return (Object){0};
 }

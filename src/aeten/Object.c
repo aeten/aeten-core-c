@@ -34,9 +34,9 @@ static void Object_Class_constructor(void) {
 
 void Object_finalize(Object* self) {}
 void Object_delete(Object* self) {
-	Object_finalize(self);
-	if ((self->_object_ != NULL) && ((struct instance*)self)->_isInStack_ == false) {
-		free(self);
+	aeten_Object_finalize(*self);
+	if ((self->_object_ != NULL) && ((struct instance*)self->_object_)->_isInStack_ == false) {
+		free(self->_object_);
 	}
 }
 
@@ -49,7 +49,7 @@ bool Object_isNull(Object object) {
 }
 
 uint64_t Object_hashCode(Object *self) {
-	return Hash_hashPointer(self, DEFAULT_HASH_BITS);
+	return Hash_hashPointer(self->_object_, DEFAULT_HASH_BITS);
 }
 
 bool Object_isObject(void *pointer) {
