@@ -52,6 +52,11 @@ typedef struct {
 	(((aeten_Object*)pointer)->_class_ == NULL) || (((aeten_Object*)pointer)->_object_ == NULL) \
 )
 
+static inline bool _instanceOf(void *pointer, size_t class_offset, void *class) {
+	return (pointer != NULL) && ((((uint8_t*)pointer) + class_offset) == (void*)&class);
+}
+#define instanceOf(pointer, class) _instanceOf(pointer, offsetof(aeten_Object, _class_), & class##_class)
+
 #define READONLY_INIT(attribute, value) do { \
 		typeof(attribute) _val_ = value; \
 		uint8_t* _ptr_ = (uint8_t*)&attribute; \
