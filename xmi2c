@@ -348,12 +348,12 @@ object_declaration_attribute_visitor() {
 	${_static} || {
 		if ${_final}; then
 			if [ "${_type/*\**/*}" = '*' ] || [ "${_type/*\[\]*/[]}" = '[]' ]; then
-				echo -e "\t${_type} const ${_name};"
+				echo -e "\t\t${_type} const ${_name};"
 			else
-				echo -e "\tconst ${_type} ${_name};"
+				echo -e "\t\tconst ${_type} ${_name};"
 			fi
 		else
-			echo -e "\t${_volatile}${_type} ${_name};"
+			echo -e "\t\t${_volatile}${_type} ${_name};"
 		fi
 	}
 }
@@ -469,7 +469,24 @@ EOF
 			if [ ${classtype} = class ] || \
 				( [ ${CLASS_TYPE} = class ] && ( ( ! ${_default} ) || ( [ ${c_class} = ${C_CLASS} ] && ${_override} ) ) ) || \
 				( [ ${CLASS_TYPE} = interface ] && [ ${c_class} = ${C_CLASS} ] && ( ${_default} || ${_override} ) ); then
-				echo "static ${_type} ${CLASS_NAME}_${_name}(${_args/${c_class}\* self/${C_CLASS}* self});"
+				cat <<-EOF
+					static ${_type}  ${CLASS_NAME}_${_name}(${_args/${c_class}\* self/${C_CLASS}* self});
+				EOF
+				if ${_default}; then
+					cat - <<-EOF
+						static ${_type} _${CLASS_NAME}_${_name}(${_args/${c_class}\* self/${C_CLASS}* self});
+						${_type} _${CLASS_NAME}_${_function}(${_args}) {
+						   return ${CLASS_NAME}_${_function}($(echo "${_args}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $NF}'|sed 's/,$//'));
+						}
+					EOF
+				else
+					cat - <<-EOF
+						static ${_type} _${CLASS_NAME}_${_name}(${_args/${c_class}\* self/${C_CLASS}* self});
+						${_type} _${CLASS_NAME}_${_function}(${_args/${c_class}\* self/${C_CLASS}* self}) {
+						   return ${CLASS_NAME}_${_function}($(echo "${_args/self/self->_object_}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $NF}'|sed 's/,$//'));
+						}
+					EOF
+				fi
 			fi
 			if ( ! ${_override} ); then
 				${_public} || echo -n 'static '
@@ -479,29 +496,31 @@ EOF
 					_classdef="_class_->${c_class}."
 				fi
 				if [ ${CLASS_TYPE} = interface ]; then
-					cat - <<EOF
-${_type} ${C_CLASS}_${_function}(${_args/${c_class}\* self/${C_CLASS} self}) {
-	check(self._class_ != NULL, NullPointerException, "self._class_");
-	check(self._object_ != NULL, NullPointerException, "self._object_");
-	return self.${_classdef}${_function}($(echo "${_args/self/self._object_}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $NF}'|sed 's/,$//'));
-}
+					cat <<-EOF
+						${_type} ${C_CLASS}_${_function}(${_args/${c_class}\* self/${C_CLASS} self}) {
+						   check(self._class_ != NULL, NullPointerException, "self._class_");
+						   check(self._object_ != NULL, NullPointerException, "self._object_");
+						   ${c_class} obj = { (struct _${c_class}_Class*)&(self._class_->${c_class}), (${c_class}*)self._object_ };
+						   return self.${_classdef}${_function}($(echo "${_args/self/(${C_CLASS}*)\&obj}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $NF}'|sed 's/,$//'));
+						}
 
-EOF
+					EOF
 				else
-					cat - <<EOF
-${_type} ${C_CLASS}_${_function}(${_args/${c_class}\* self/${C_CLASS}* self}) {
-	check(self != NULL, NullPointerException, "self");
-	check(self->_class_ != NULL, NullPointerException, "self->_class_");
-	check(self->_object_ != NULL, NullPointerException, "self->_object_");
-	return self->${_classdef}${_function}($(echo "${_args/self/self->_object_}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $NF}'|sed 's/,$//'));
-}
+					cat <<-EOF
+						${_type} ${C_CLASS}_${_function}(${_args/${c_class}\* self/${C_CLASS}* self}) {
+						   check(self != NULL, NullPointerException, "self");
+						   check(self->_class_ != NULL, NullPointerException, "self->_class_");
+						   check(self->_object_ != NULL, NullPointerException, "self->_object_");
+						   ${c_class} obj = { (struct _${c_class}_Class*)&(self->_class_->${c_class}), (${c_class}*)self->_object_ };
+						   return self->${_classdef}${_function}($(echo "${_args/self/(${C_CLASS}*)&obj}"|awk -F' ' 'BEGIN{RS=",";ORS=","}{print $NF}'|sed 's/,$//'));
+						}
 
-EOF
+					EOF
 				fi
 			fi
 		fi
 	else
-		cat - <<EOF
+		cat - <<-EOF
 inline static void _${C_CLASS}_init(${c_class}* self, bool isInStack);
 
 inline static void ${CLASS_NAME}_new${_name}(${_args/${c_class}\* self/${C_CLASS}* self});
@@ -536,7 +555,7 @@ interface_init_method_visitor() {
 			fi
 			for _method_name in $(visit_class constructor_definition ${_cls}); do
 				if [ ${_method_name/:*/} = ${_name} ]; then
-					echo "	${_classdef}${_name} = ${CLASS_NAME}_${_name};"
+					echo "	${_classdef}${_name} = _${CLASS_NAME}_${_name};"
 					return
 				fi
 			done
@@ -550,7 +569,7 @@ constructor_definition_method_visitor() {
 		echo -n ${_name}
 		${_override} && [ ${c_class} = ${C_CLASS} ] && echo -n :override
 		( ${_default} || ( ${_static} && [ ${c_class} != ${C_CLASS} ] ) ) && echo -n :default
-		echo 
+		echo -e ":type=${_type}:args={${_args// /\\032}}"
 	fi
 }
 
@@ -786,7 +805,6 @@ $(for cls in ${CLASS_HIERARCHY}; do
 	visit_class typedef ${cls}
 done)
 
-
 /** Class ${c_class} */
 struct _${c_class}_Class;
 void _${c_class}_Class_init(struct _${c_class}_Class *iface);
@@ -849,17 +867,17 @@ EOF
 #define ${c_class}_cast(instance) \\
 	({ \\
 		typeof(instance) _instance_ = instance; \\
-		(${c_class}){ \\
-			(struct _${c_class}_Class*)&_instance_->_class_->${c_class}, \\
-			(${c_class}*)_instance_->_object_ \\
-		}; \\
+			(${c_class}){ \\
+				(_instance_ == NULL)? &${c_class}_class: (struct _${c_class}_Class*)&_instance_->_class_->${c_class}, \\
+				(_instance_ == NULL)? NULL: (${c_class}*)_instance_->_object_ \\
+			}; \\
 	})
 
 #define ${c_class}_staticCast(instance) \\
 	({ \\
 		typeof(instance) _instance_ = instance; \\
 		(${c_class}){ \\
-			(struct _${c_class}_Class*)(((uint8_t*)&_instance_._class_->aeten_Object)-offsetof(struct _${c_class}_Class, aeten_Object)), \\
+			(struct _${c_class}_Class*)(((uint8_t*)&_instance_._class_->aeten_Object) - offsetof(struct _${c_class}_Class, aeten_Object)), \\
 			(${c_class}*)_instance_._object_ \\
 		}; \\
 	})
@@ -867,6 +885,24 @@ EOF
 // TODO: implement dynamic cast
 #define ${c_class}_dynamicCast(instance) \\
 	${c_class}_staticCast(instance)
+
+#define ${c_class}_castTo(instance, interface) _${c_class}_castTo(instance, interface)
+#define _${c_class}_castTo(instance, interface) \\
+	({ \\
+		typeof(instance) _instance_ = instance; \\
+		(interface){ \\
+			(struct _##interface##_Class*)(((uint8_t*)_instance_._class_) - offsetof(struct _##interface##_Class, ${c_class})), \\
+			(interface*)_instance_._object_ \\
+		}; \\
+	})
+#define ${c_class}_castFrom(instance) \\
+	({ \\
+		typeof(instance) _instance_ = instance; \\
+		(${c_class}){ \\
+			(struct _${c_class}_Class*)(_instance_._class_), \\
+			(${c_class}*)_instance_._object_ \\
+		}; \\
+	})
 EOF
 
 	else
@@ -895,10 +931,12 @@ $(visit_class c_private ${CLASS})
 #endif // ${c_class^^}_H
 
 #if defined(import) || defined(_${C_CLASS^^}_PRIVATE)
-#	define ${CLASS_NAME} ${C_CLASS}
-#	define ${CLASS_NAME}_cast ${C_CLASS}_cast
-#	define ${CLASS_NAME}_staticCast ${C_CLASS}_staticCast
+#	define ${CLASS_NAME}             ${C_CLASS}
+#	define ${CLASS_NAME}_cast        ${C_CLASS}_cast
+#	define ${CLASS_NAME}_staticCast  ${C_CLASS}_staticCast
 #	define ${CLASS_NAME}_dynamicCast ${C_CLASS}_dynamicCast
+#	define ${CLASS_NAME}_castTo      ${C_CLASS}_castTo
+#	define ${CLASS_NAME}_castFrom    ${C_CLASS}_castFrom
 #endif
 EOF
 	if [ ${classtype} = class ]; then
@@ -917,7 +955,7 @@ EOF
 	done
 	_methods=${_methods//:default/}
 	_methods=${_methods//:override/}
-	_methods=$(echo -e "${_methods}"|sort -u)
+	_methods=$(echo -e "${_methods}"|sed 's/:type=[^ ]\+:args={[^}]*}//g'|sort -u)
 	if [ ${classtype} = class ]; then
 		echo "#	ifndef _${C_CLASS^^}_PRIVATE"
 	fi
@@ -944,7 +982,10 @@ c_private_class_visitor() {
 	eval "${methods_class_visitor_init}"
 	local _cls
 	local _methods
+	local _method
 	local _method_name
+	local _method_type
+	local _method_args
 	local _default_methods
 	local _override_methods
 	local _found
@@ -977,6 +1018,7 @@ EOF
 		done
 		_methods=${_methods//:default/}
 		_methods=${_methods//:override/}
+		_methods=$(echo "${_methods}"|sed 's/:type=[^ ]\+:args={[^}]*}//g')
 		_implementations=
 		for _method_name in $({ echo -e "${_override_methods}"; comm -13 --nocheck-order <(echo -e "${_default_methods}"|sort -u) <(echo -e "${_methods}"|sort -u); }|sort -u); do
 			_implementations+=" ${_method_name}"
@@ -991,9 +1033,14 @@ EOF
 				else
 					_classdef="_class->${_c_class}."
 				fi
-				for _method_name in $(visit_class constructor_definition ${_cls}); do
-					if [ ${_method_name/:*/} = ${_impl} ]; then
-						echo "	${_classdef}${_impl} = ${CLASS_NAME}_${_impl};"
+				for _method in $(visit_class constructor_definition ${_cls}); do
+					_default=${_method/*:default*/true}
+					if [ "${_default}" != true ]; then
+						_default=false
+					fi
+					_method_name=${_method/:*/}
+					if [ ${_method_name} = ${_impl} ]; then
+						echo "	${_classdef}${_impl} = _${CLASS_NAME}_${_impl};"
 						_found=true;
 						break
 					fi
