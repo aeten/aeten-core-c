@@ -19,13 +19,17 @@
 #include "InetSocketAddress.h"
 #include "List.h"
 #include "Set.h"
+#include "HashSet.h"
 #include "ArrayList.h"
+#include "aeten/io/ByteBuffer.h"
 #include "aeten/io/SelectableChannel.h"
 #include "aeten/io/SelectorService.h"
 #include "aeten/io/SelectionKey.h"
 #include "aeten/io/SocketAddress.h"
 #include "aeten/io/InetAddress.h"
 #include "aeten/Iterator.h"
+#include "aeten/Hash.h"
+
 
 /*
 @startuml(id=SelectorProvider) SelectorProvider
@@ -43,6 +47,7 @@ namespace aeten.io.posix {
 
 @startuml(id=Selector) Selector
 !include Object.c
+!include HashSet.c
 !include aeten/io/Selector.c
 !include aeten/io/SelectableChannel.c
 !include SelectorProvider.c!SelectorProvider
@@ -52,12 +57,15 @@ namespace aeten.io.posix {
 namespace aeten.io.posix {
 	class Selector implements aeten.io.Selector {
 		+ {static} Selector(SelectorProvider *provider) <<constructor>>
-		+ SelectionKey registerTo(SelectableChannel channel, int fd, int interest, void *attachment)
+		+ SelectionKey registerTo(SelectableChannel channel, int fd, uint8_t interest, void *attachment)
 
 		- provider: SelectorProvider*
 		- selection: SelectKeySet
 		- nfds: int
 		- size: size_t
+		- keys: HashSet
+		- acceptfds: fd_set
+		- connectfds: fd_set
 		- readfds: fd_set
 		- writefds: fd_set
 		- exceptfds: fd_set
@@ -136,12 +144,14 @@ namespace aeten.io.posix {
 !define aeten_io_posix_SelectKey
 namespace aeten.io.posix {
 	class SelectKey implements aeten.io.SelectionKey {
-		+ {static} SelectKey(aeten_io_posix_Selector* selector, SelectableChannel channel, int fd, int interest, void* attachment) <<constructor>>
+		+ {static} SelectKey(aeten_io_posix_Selector* selector, SelectableChannel channel, int fd, uint8_t interest, void* attachment) <<constructor>>
+		+ bool equals(Object other) <<override>>
+		+ uint64_t hashCode() <<override>>
 
 		- selector: aeten_io_posix_Selector*
 		- channel: SelectableChannel
 		- fd: int
-		- interest: int
+		- interest: uint8_t
 		- attachment: void*
 	}
 }
@@ -161,14 +171,19 @@ namespace aeten.io.posix {
 		+ finalize() <<override>>
 
 		- selection: SelectKeySet*
+		- current: SelectKey*
+		- next: SelectKey*
 	}
 }
 !endif
 @enduml
 */
 
+#define IS_INTEREST(interest_flags, interest) \
+	((interest_flags & aeten_io_SelectionKey_class.OP_##interest) == aeten_io_SelectionKey_class.OP_##interest)
+
 static inline SelectKey *findKey(ArrayList *keys, Selector *selector);
-static inline SelectionKey registerKey(ArrayList **keys, Selector *selector, SelectableChannel channel, int fd, int interest, void *attachment);
+static inline SelectionKey registerKey(ArrayList **keys, Selector *selector, SelectableChannel channel, int fd, uint8_t interest, void *attachment);
 
 /* SelectorProvider */
 void SelectorProvider_new(SelectorProvider *self) {
@@ -193,6 +208,9 @@ void Selector_new(Selector *self, SelectorProvider *provider) {
 	self->_nfds = 0;
 	self->_size = 0;
 	init_SelectKeySet(&self->_selection, self);
+	init_HashSet(&self->_keys);
+	FD_ZERO(&self->_acceptfds);
+	FD_ZERO(&self->_connectfds);
 	FD_ZERO(&self->_readfds);
 	FD_ZERO(&self->_writefds);
 	FD_ZERO(&self->_exceptfds);
@@ -202,11 +220,19 @@ SelectorService Selector_provider(Selector *self) {
    return SelectorService_cast(self->_provider);
 }
 
-aeten_io_SelectionKey Selector_registerTo(Selector *self, SelectableChannel channel, int fd, int interest, void *attachment) {
-	return aeten_io_SelectionKey_cast(new_SelectKey(self, channel, fd, interest, attachment));
+aeten_io_SelectionKey Selector_registerTo(Selector *self, SelectableChannel channel, int fd, uint8_t interest, void *attachment) {
+	SelectKey *key = new_SelectKey(self, channel, fd, interest, attachment);
+	HashSet_add(&self->_keys, Object_cast(key));
+	return aeten_io_SelectionKey_cast(key);
 }
 
 int Selector_select(Selector *self) {
+	Iterator i = HashSet_iterator(&self->_keys);
+	while(Iterator_hasNext(i)) {
+		SelectKey *key = SelectKey_cast(Iterator_next(i));
+		SelectKey_setInterestOps(key, key->_interest);
+	}
+	Iterator_delete(i);
 	int retval = select(self->_nfds, &self->_readfds, &self->_writefds, &self->_exceptfds, NULL);
 	if (retval < 0) {
 		switch (errno) {
@@ -217,7 +243,7 @@ int Selector_select(Selector *self) {
 				check(retval > -1, InvalidArgumentException, "%m (errno=%u)", errno);
 				break;
 			case ENOMEM:
-				check(retval > -1, HeapAllocationIOException, "%m (errno=%u)", errno);
+				check(retval > -1, HeapAllocationException, "%m (errno=%u)", errno);
 				break;
 			case EINTR:
 				check(retval > -1, InterruptException, "%m (errno=%u)", errno);
@@ -243,7 +269,7 @@ int Selector_selectNanos(Selector *self, uint64_t nanosTimeout) {
 				check(retval > -1, InvalidArgumentException, "%m (errno=%u)", errno);
 				break;
 			case ENOMEM:
-				check(retval > -1, HeapAllocationIOException, "%m (errno=%u)", errno);
+				check(retval > -1, HeapAllocationException, "%m (errno=%u)", errno);
 				break;
 			case EINTR:
 				check(retval > -1, InterruptException, "%m (errno=%u)", errno);
@@ -255,10 +281,12 @@ int Selector_selectNanos(Selector *self, uint64_t nanosTimeout) {
 
 void Selector_close(Selector* self) {
 	// TODO
+	check(0, UnsupportedOperationException, "Selector.close()");
 }
 
 Set Selector_keys(Selector* self) {
 	// TODO
+	check(0, UnsupportedOperationException, "Selector.keys()");
 	return (Set){0};
 }
 
@@ -279,7 +307,7 @@ SelectorService SocketChannel_provider(SocketChannel *self) {
 	return SelectorService_cast(self->_provider);
 }
 
-aeten_io_SelectionKey SocketChannel_registerTo(SocketChannel *self, aeten_io_Selector sel, int interest, void *attachment) {
+aeten_io_SelectionKey SocketChannel_registerTo(SocketChannel *self, aeten_io_Selector sel, uint8_t interest, void *attachment) {
 	return registerKey(&self->_keys, Selector_dynamicCast(sel),  SelectableChannel_cast(self), self->_fd, interest, attachment);
 }
 
@@ -313,13 +341,98 @@ SocketAddress SocketChannel_getLocalAddress(SocketChannel *self) {
 }
 
 int SocketChannel_read(SocketChannel *self, aeten_io_ByteBuffer dst) {
-	// TODO
-	return -1;
+	size_t position = ByteBuffer_position(dst);
+	size_t size     = ByteBuffer_capacity(dst) - position;
+	uint8_t *array;
+	if (ByteBuffer_hasArray(dst)) {
+		array = ByteBuffer_array(dst) + position;
+	} else {
+		check((array = malloc(size)) != NULL, HeapAllocationException, "array = malloc(%zu)", size);	
+	}
+	int n = read(self->_fd, array, ByteBuffer_capacity(dst) - position);
+	if (n > 0) {
+		ByteBuffer_setLimit(dst, position + n);
+		ByteBuffer_setPosition(dst, position + n);
+	} else if (n <  0) {
+		switch(errno) {
+			case EAGAIN: // or EWOULDBLOCK
+				n = 0;
+				break;
+			case EBADF:
+				throw(ClosedChannelException);
+				break;
+			case EFAULT:
+				throw(InvalidAddressError);
+				break;
+			case EINTR:
+				throw(InterruptException);
+				break;
+			case EINVAL:
+				throw(InvalidArgumentException);
+				break;
+			case EIO:
+				throw(IOException);
+				break;
+			case EISDIR:
+				throw(IOException, "File %u is a directory", self->_fd);
+				break;
+			default:
+				throw(IOException "Unknown error %m");
+				break;
+		}
+	} else if (n == 0) {
+		n = -1; // end of stream
+	}
+	return n;
 }
 
 int SocketChannel_write(SocketChannel *self, aeten_io_ByteBuffer src) {
-	// TODO
-	return -1;
+	size_t position = ByteBuffer_position(src);
+	uint8_t *array  = ByteBuffer_array(src) + position;
+	int n           = write(self->_fd, array, ByteBuffer_limit(src) - position);
+	if (n > 0) {
+		ByteBuffer_setLimit(src, position + n);
+		ByteBuffer_setPosition(src, position + n);
+	} else if (n <  0) {
+		n = -1;
+		switch(errno) {
+			case EAGAIN: // or EWOULDBLOCK
+				n = 0;
+				break;
+			case EBADF:
+			case EPIPE:
+				throw(ClosedChannelException);
+				break;
+			case EDESTADDRREQ:
+				throw(NotYetConnectedException);
+				break;
+			case EFAULT:
+				throw(InvalidAddressError);
+				break;
+			case EINTR:
+				throw(InterruptException);
+				break;
+			case EINVAL:
+				throw(InvalidArgumentException);
+				break;
+			case EIO:
+			case EDQUOT:
+			case EFBIG:
+			case ENOSPC:
+			case EPERM:
+				throw(IOException, "%m");
+				break;
+			case EISDIR:
+				throw(IOException, "File %u is a directory", self->_fd);
+				break;
+			default:
+				throw(IOException "Unknown error: %m");
+				break;
+		}
+	} else if (n == 0) {
+		n = -1; // End of stream
+	}
+	return n;
 }
 
 bool SocketChannel_isOpen(SocketChannel *self) {
@@ -348,16 +461,27 @@ SelectorService ServerSocketChannel_provider(ServerSocketChannel *self) {
    return SelectorService_cast(self->_provider);
 }
 
-SelectionKey ServerSocketChannel_registerTo(ServerSocketChannel *self, aeten_io_Selector sel, int interest, void *attachment) {
+SelectionKey ServerSocketChannel_registerTo(ServerSocketChannel *self, aeten_io_Selector sel, uint8_t interest, void *attachment) {
 	return registerKey(&self->_keys, Selector_dynamicCast(sel), SelectableChannel_cast(self), self->_fd, interest, attachment);
 }
 
 aeten_io_ServerSocketChannel ServerSocketChannel_bind(ServerSocketChannel *self, aeten_io_SocketAddress local, int  backlog) {
 	self->_local = local;
+	// TODO inspect address type in order to manage other type of socket
 	InetAddress local_addr = InetSocketAddress_address(InetSocketAddress_dynamicCast(local));
-	socklen_t addr_size = InetAddress_size(local_addr);
-	check(0 == bind(self->_fd, (const struct sockaddr *)InetAddress_address(local_addr), addr_size), IOException, "%m (errno=%u)", errno);
-	check(0 == listen(self->_fd, backlog), IOException, "%m (errno=%u)", errno) {
+	if (self->_fd == -1) {
+		self->_fd = socket(AF_INET, SOCK_STREAM, 0);
+		check(self->_fd > -1, IOException,"Unable to create socket: %m");
+	}
+	struct sockaddr_in addr = {
+		.sin_addr.s_addr = 0,
+		.sin_port = htons(InetSocketAddress_port(InetSocketAddress_dynamicCast(local))),
+		.sin_family = AF_INET
+	};
+	size_t addr_size = InetAddress_size(local_addr);
+	memcpy(&addr.sin_addr.s_addr, InetAddress_address(local_addr), addr_size);
+	check(0 == bind(self->_fd, (struct sockaddr*)&addr, sizeof(addr)), IOException, "%m");
+	check(0 == listen(self->_fd, backlog), IOException, "%m") {
 		self->_peer_address_size = addr_size;
 	}
 	return aeten_io_ServerSocketChannel_cast(self);
@@ -369,7 +493,7 @@ aeten_io_SocketChannel ServerSocketChannel_accept(ServerSocketChannel* self) {
 	uint8_t addr[self->_peer_address_size];
 	int client_fd = accept(self->_fd, (struct sockaddr *)&addr, &self->_peer_address_size);
 	check(client_fd != -1, IOException, "%m (errno=%u)", errno);
-	// TODO: switch protocol (sockaddr_in, sockaddr_un...)
+	// TODO: switch protocol (sockaddr_in, sockaddr_un…)
 	return aeten_io_SocketChannel_cast(new_SocketChannel(self->_provider, client_fd, (struct sockaddr_in*)InetAddress_address(local_addr), (struct sockaddr_in*)addr));
 }
 
@@ -395,9 +519,8 @@ void SelectKeySet_new(SelectKeySet *self, Selector *selector) {
 	self->_selector = selector;
 }
 
-bool SelectKeySet_contains(SelectKeySet *self, SelectionKey key) {
-	// TODO
-	return false;
+bool SelectKeySet_contains(SelectKeySet *self, SelectionKey k) {
+	return (0 != SelectionKey_readyOps(k));
 }
 
 size_t SelectKeySet_size(SelectKeySet *self) {
@@ -415,43 +538,104 @@ void SelectKeySet_finalize(SelectKeySet *self) {
 /* SelectKeySetIterator */
 void SelectKeySetIterator_new(SelectKeySetIterator *self, SelectKeySet *selection) {
 	self->_selection = selection;
+	self->_current = NULL;
 }
 
 void SelectKeySetIterator_finalize(SelectKeySetIterator *self) {
 	// TODO
 }
 
+#define ON_FD_ISSET(fd_set, action) \
+	if (FD_ISSET(key->_fd, &self->_selection->_selector->_##fd_set##fds)) { \
+		action ; \
+	}
+#define FOREACH_FDSET(action) \
+		ON_FD_ISSET(read, action); \
+		ON_FD_ISSET(write, action); \
+		ON_FD_ISSET(except, action); \
+		ON_FD_ISSET(accept, action); \
+		ON_FD_ISSET(connect, action);
 bool SelectKeySetIterator_hasNext(SelectKeySetIterator *self) {
-	// TODO
-	return false;
+	Iterator i = HashSet_iterator(&self->_selection->_selector->_keys);
+	while(Iterator_hasNext(i)) {
+		SelectKey *key = SelectKey_cast(Iterator_next(i));
+		if (key != NULL) {
+			FOREACH_FDSET(self->_next = key; break);
+		}
+	}
+	Iterator_delete(i);
+	return self->_next != NULL;
 }
 
 SelectionKey SelectKeySetIterator_next(SelectKeySetIterator *self) {
-	// TODO
-	return (SelectionKey){0};
+	if (NULL == self->_next) {
+		SelectKeySetIterator_hasNext(self);
+	}
+	self->_current = self->_next;
+	SelectionKey key = SelectionKey_cast(self->_next);
+	Object obj = { (struct _aeten_Object_Class*)key._class_, (aeten_Object*)key._object_ };
+	check(!Object_isNull(obj), NullPointerException);
+	return key;
+//	return SelectionKey_cast(self->_next);
 }
 
 /* SelectKey */
-void SelectKey_new(SelectKey *self, Selector *selector, SelectableChannel channel, int fd, int interest, void *attachment) {
+void SelectKey_new(SelectKey *self, Selector *selector, SelectableChannel channel, int fd, uint8_t interest, void *attachment) {
 	self->_selector = selector;
 	self->_channel = channel;
 	self->_fd = fd;
-	self->_interest = interest;
 	self->_attachment = attachment;
+	SelectKey_setInterestOps(self, interest);
+	if ((selector->_nfds - 1) < fd) {
+		selector->_nfds = fd + 1;
+	}
 }
 
-int SelectKey_interestOps(SelectKey *self) {
+uint8_t SelectKey_interestOps(SelectKey *self) {
 	return self->_interest;
 }
 
-SelectionKey SelectKey_setInterestOps(SelectKey *self, int interest) {
+SelectionKey SelectKey_setInterestOps(SelectKey *self, uint8_t interest) {
 	self->_interest = interest;
+	if (IS_INTEREST(interest, ACCEPT)) {
+		FD_SET(self->_fd, &self->_selector->_acceptfds);
+		FD_SET(self->_fd, &self->_selector->_readfds);
+	}
+	if (IS_INTEREST(interest, CONNECT)) {
+		FD_SET(self->_fd, &self->_selector->_connectfds);
+	}
+	if (IS_INTEREST(interest, READ)) {
+		FD_SET(self->_fd, &self->_selector->_readfds);
+	}
+	if (IS_INTEREST(interest, WRITE)) {
+		FD_SET(self->_fd, &self->_selector->_writefds);
+	}
 	return SelectionKey_cast(self);
 }
 
-int SelectKey_readyOps(SelectKey *self) {
-	// TODO
-	return 0;
+uint8_t SelectKey_readyOps(SelectKey *self) {
+	int ops = 0;
+	if (IS_INTEREST(self->_interest, READ)) {
+		if (FD_ISSET(self->_fd, &self->_selector->_readfds) && !FD_ISSET(self->_fd, &self->_selector->_acceptfds) && !FD_ISSET(self->_fd, &self->_selector->_connectfds)) {
+			ops |= aeten_io_SelectionKey_class.OP_READ;
+		}
+	}
+	if (IS_INTEREST(self->_interest, WRITE)) {
+		if (FD_ISSET(self->_fd, &self->_selector->_writefds) && !FD_ISSET(self->_fd, &self->_selector->_acceptfds) && !FD_ISSET(self->_fd, &self->_selector->_connectfds)) {
+			ops |= aeten_io_SelectionKey_class.OP_WRITE;
+		}
+	}
+	if (IS_INTEREST(self->_interest, ACCEPT)) {
+		if (FD_ISSET(self->_fd, &self->_selector->_readfds) && FD_ISSET(self->_fd, &self->_selector->_acceptfds)) {
+			ops |= aeten_io_SelectionKey_class.OP_ACCEPT;
+		}
+	}
+	if (IS_INTEREST(self->_interest, CONNECT)) {
+		if (FD_ISSET(self->_fd, &self->_selector->_readfds) && FD_ISSET(self->_fd, &self->_selector->_connectfds)) {
+			ops |= aeten_io_SelectionKey_class.OP_CONNECT;
+		}
+	}
+	return ops;
 }
 
 SelectableChannel SelectKey_channel(SelectKey *self) {
@@ -466,6 +650,23 @@ void *SelectKey_attach(SelectKey *self, void *attachment) {
 	void *oldAttachment = self->_attachment;
 	self->_attachment = attachment;
 	return oldAttachment;
+}
+
+bool SelectKey_equals(SelectKey *self, Object other) {
+	if (!instanceOf(&other, SelectKey)) {
+		return false;
+	}
+	SelectKey *key = SelectKey_cast(other);
+	return (instanceOf(&other, SelectKey) &&
+		(self->_fd == key->_fd) &&
+		(self->_interest == key->_interest) &&
+		(self->_attachment == key->_attachment)
+	);
+}
+
+#define SELECT_KEY_HASH_BITS 7
+uint64_t SelectKey_hashCode(SelectKey *self) {
+	return Hash_hash64(((uint64_t)self->_interest << 32) + (uint64_t)self->_fd, SELECT_KEY_HASH_BITS);
 }
 
 /* Privates functions */
@@ -486,14 +687,15 @@ static SelectKey *findKey(ArrayList *keys, Selector *selector) {
 	return NULL;
 }
 
-static SelectionKey registerKey(ArrayList **keys, Selector *selector, SelectableChannel channel, int fd, int interest, void *attachment) {
-	SelectionKey key = SelectionKey_cast(findKey(*keys, selector));
+static SelectionKey registerKey(ArrayList **keys, Selector *selector, SelectableChannel channel, int fd, uint8_t interest, void *attachment) {
 	if (*keys == NULL) {
 		*keys = new_ArrayList(3);
 	}
+	SelectionKey key = SelectionKey_cast(findKey(*keys, selector));
 	if (isNull(&key)) {
 		key = SelectionKey_cast(new_SelectKey(selector, channel, fd, interest, attachment));
 		ArrayList_add(*keys, Object_cast(&key));
+		HashSet_add(&selector->_keys, Object_cast(&key));
 	} else {
 		SelectionKey_setInterestOps(key, interest);
 		SelectionKey_attach(key, attachment);
