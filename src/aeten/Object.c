@@ -5,6 +5,8 @@
 
 /*
 @startuml
+!ifndef aeten_Object
+!define aeten_Object
 namespace aeten {
 	interface Object<T extends Object> {
 		# finalize() <<default>>
@@ -17,6 +19,7 @@ namespace aeten {
 		+ {static} null: Object <<final>>
 	}
 }
+!endif
 @enduml
 */
 

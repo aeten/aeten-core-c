@@ -10,12 +10,14 @@ namespace aeten {
 		+ removeAt(size_t position) <<default>> <<optional>>
         + set(size_t position, T element) <<default>> <<optional>>
 	}
+!ifdef aeten_List
 	note right of List::get
 		Return the element at the mentioned position.
 	end note
 	note right of List::set
 		Set the element at the given position.
 	end note
+!endif
 }
 @enduml
 */

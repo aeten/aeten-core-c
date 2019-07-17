@@ -12,6 +12,7 @@ namespace aeten {
 		+ bool remove(T element) <<default>> <<optional>>
 		+ size_t size()
 	}
+!ifdef aeten_Collection
 	note right of Collection::add
 		Ensures that this collection contains the specified element (optional operation).
 	end note
@@ -19,8 +20,9 @@ namespace aeten {
 		Removes a single instance of the specified element from this collection, if it is present (optional operation)
 	end note
 	note right of Collection::size
-		Return the size of the 
+		Return the size, of the collection.
 	end note
+!endif
 }
 @enduml
 */

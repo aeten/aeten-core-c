@@ -68,7 +68,7 @@ rule puml2cclass
 
 rule puml2x
     description = Convert UML class diagram '${in}' into '${out}'
-    command = ext='${out}'; ext="$${ext##*.}"; [ xmi = "$${ext}" ] && ext=xmi:star; ${java} -cp '${puml}:${classpath}' -Djava.awt.headless=true ${pumlpath}:${generated}/$$(dirname ${in}):${generated}/$$(dirname ${in}|sed 's,^${testdir}/,${srcdir}/,') net.sourceforge.plantuml.Run -o $$(realpath --relative-to=$$(dirname ${in}) $$(dirname ${out})|head -n 1) -Sshadowing=false -failfast2 -t$${ext} ${pumlflags} ${in} || { rm -f ${out}; false; }
+    command = ext='${out}'; ext="$${ext##*.}"; [ xmi = "$${ext}" ] && ext=xmi:star; ${java} -cp '${puml}:${classpath}' -Djava.awt.headless=true ${pumlpath}:${generated}/$$(dirname ${in}):${generated}/$$(dirname ${in}|sed 's,^${testdir}/,${srcdir}/,') net.sourceforge.plantuml.Run -o $$(realpath --relative-to=$$(dirname ${in}) $$(dirname ${out})|head -n 1) $$(for class in $$(sed -n '/@startuml/ {$$! {: begin; n; /@enduml/b end; /class\|interface/ {s,\s*\(class\|interface\)\s\+[a-z.]*\([^ \t<{]\+\)[{< ].*,\2,p}; b begin; : end } }' "${in}"); do echo -D$$(dirname ${in}|awk -F/ 'BEGIN{OFS="_"}{$$1="";print substr($$0,2) "'_$${class}'"}'); done) -Sshadowing=false -failfast -t$${ext} ${pumlflags} ${in} || { rm -f ${out}; false; }
 
 rule xmi2c
     description = Generate C file '${out}' from XMI '${in}'

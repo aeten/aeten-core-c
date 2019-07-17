@@ -15,6 +15,7 @@ namespace aeten {
         + Set<MapEntry<K,V>> entrySet()
         + Set<K> keySet()
 	}
+!ifdef aeten_Map
 	note right of Map::get
 		Returns the value to which the specified key is mapped, or null if this map contains no mapping for the key.
 	end note
@@ -24,6 +25,7 @@ namespace aeten {
 	note right of Map::remove
 		Removes the mapping for a key from this map if it is present (optional operation).
 	end note
+!endif
 }
 @enduml
 */
