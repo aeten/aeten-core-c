@@ -39,6 +39,7 @@ src <directory>: The sources directory
 test <directory>: The sources directory for tests
 out <directory>: The output build directory, _${CURDIR}/build_ by default.
 plantuml|P <jar-file>: The PlantUML jar file path.
+plantuml-flags|F <flags>: PlantUML additional flags.
 object-model|m <model>: The object model generation mode, _simple_ support only one parent per interface whereas _complete_ support several and provides castable ojects (ie. cast a list to iterable).
 cc <cc-exec-file>: The C compiler executable file path, _gcc_ by default.
 ld <ld-exec-file>: The linker executable file path, _gcc_ by default.
@@ -139,7 +140,6 @@ OBJ=$(       ${replace_suffix} '' .o   $(${add_prefix} \\\${output}/    ${CLASSE
 HEADERS=$(   ${replace_suffix} '' .h   $(${add_prefix} \\\${generated}/ ${CLASSES}))
 XMI_FILES=$( ${replace_suffix} '' .xmi $(${add_prefix} \\\${output}/    ${CLASSES}))
 PUML_PATH="-Dplantuml.include.path=${SRC_DIR}:${SRC_DIR}/aeten:${GEN_DIR}/${SRC_DIR}:${GEN_DIR}/${SRC_DIR}/aeten"
-PUML_FLAGS=
 
 check -m "Generates ${build_script}" cat - <<EOF '>' ${CURDIR}/${build_script}
 project   = ${PWD##*/}
@@ -153,7 +153,7 @@ xmi2c     = $(dirname "$0")/xmi2c
 java      = ${JAVA}
 puml      = ${PLANTUML}
 pumlpath  = ${PUML_PATH}
-pumlflags = ${PUML_FLAGS}
+pumlflags = ${PLANTUML_FLAGS}
 output    = ${OUT}
 srcdir    = ${SRC_DIR}
 generated = ${GEN_DIR}
