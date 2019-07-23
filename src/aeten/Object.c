@@ -5,8 +5,6 @@
 
 /*
 @startuml
-!ifndef aeten_Object
-!define aeten_Object
 namespace aeten {
 	interface Object<T extends Object> {
 		# finalize() <<default>>
@@ -16,10 +14,10 @@ namespace aeten {
 
 		+ {static} bool isObject(void* pointer)
 		+ {static} bool isNull(Object object)
+
 		+ {static} null: Object <<final>>
 	}
 }
-!endif
 @enduml
 */
 

@@ -8,7 +8,7 @@
 #include "ReentrantLockCondition.h"
 
 /*
-@startuml(id=ReentrantLock) ReentrantLock
+@startuml(id=ReentrantLock)
 !include concurrent/Lock.c
 !include concurrent/Condition.c
 namespace aeten.concurrent.posix {
@@ -20,8 +20,7 @@ namespace aeten.concurrent.posix {
 }
 @enduml
 
-@startuml(id=ReentrantLockCondition) ReentrantLockCondition
-!include Object.c
+@startuml(id=ReentrantLockCondition)
 !include concurrent/Condition.c
 namespace aeten.concurrent.posix {
 	class ReentrantLockCondition implements aeten.concurrent.Condition {

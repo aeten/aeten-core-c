@@ -41,6 +41,7 @@ rule objdep
                 done; $
             done; $
         }; $
+        get_includes ${srcdir}/aeten/Object.c; $
         get_includes ${in}; $
     } | sort -u | sed '1 s,$$,${out}: \\\n ${in} \\\n ${generated}/'$$(dirname ${in})/$$(basename ${in} .c)'.h,; 1 ! s/^/ /; $$ ! s/$$/ \\/' > ${out}
 
@@ -68,7 +69,22 @@ rule puml2cclass
 
 rule puml2x
     description = Convert UML class diagram '${in}' into '${out}'
-    command = ext='${out}'; ext="$${ext##*.}"; [ xmi = "$${ext}" ] && ext=xmi:star; ${java} -cp '${puml}:${classpath}' -Djava.awt.headless=true ${pumlpath}:${generated}/$$(dirname ${in}):${generated}/$$(dirname ${in}|sed 's,^${testdir}/,${srcdir}/,') net.sourceforge.plantuml.Run -o $$(realpath --relative-to=$$(dirname ${in}) $$(dirname ${out})|head -n 1) $$(for class in $$(sed -n '/@startuml/ {$$! {: begin; n; /@enduml/b end; /class\|interface/ {s,\s*\(class\|interface\)\s\+[a-z.]*\([^ \t<{]\+\)[{< ].*,\2,p}; b begin; : end } }' "${in}"); do echo -D$$(dirname ${in}|awk -F/ 'BEGIN{OFS="_"}{$$1="";print substr($$0,2) "'_$${class}'"}'); done) -Sshadowing=false -failfast -t$${ext} ${pumlflags} ${in} || { rm -f ${out}; false; }
+    command = base_name=$$(basename ${in} .c); $
+      namespace=$$(dirname ${in}|awk -F/ 'BEGIN{OFS="/"}{$$1="";print substr($$0,2) }'); $
+      ext='${out}'; $
+      ext="$${ext##*.}"; $
+      indir=$$(dirname ${in}); $
+		class=$$(basename ${out} .$${ext}); $
+      [ xmi = "$${ext}" ] && ext=xmi:star; $
+		if [ "$${base_name}" = "$${class}" ]; then $
+			include=$${namespace}/$${class}.c; $
+		else $
+			include=$${namespace}/$${base_name}.c'!'$${class}; $
+		fi; $
+      bash -c "${java} -cp '${puml}:${classpath}' -Djava.awt.headless=true -Dplantuml.include.path=$${indir}:${generated}/$${indir}:${generated}/$$(echo $${indir}|sed 's,^${testdir}/,${srcdir}/,'):${pumlpath} net.sourceforge.plantuml.Run -o $$(realpath --relative-to=/dev/fd $$(dirname ${out})) -Sshadowing=false -failfast -t$${ext} ${pumlflags} <(echo -e '@startuml '$${class}'\n!include Object.c\n!include '$${include}'\n@enduml')" || { $
+         rm ${out}; $
+			false; $
+      }
 
 rule xmi2c
     description = Generate C file '${out}' from XMI '${in}'

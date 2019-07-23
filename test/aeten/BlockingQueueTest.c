@@ -13,7 +13,6 @@
 
 /*!
 @startuml
-!include Object.c
 !include Integer.c
 !include concurrent/Condition.c
 !include concurrent/ArrayBlockingQueue.c

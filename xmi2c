@@ -183,7 +183,7 @@ method_visitor_init='
 	fi
 	_tmp_args="${_args}"
 	_args=
-	for _arg in $(echo "${_tmp_args}"|awk "BEGIN{RS=\",\"}{match(\$0, /^\s*([a-zA-Z][ a-zA-Z0-9_]*(\s+\*?|\*?\s+))\s*([a-zA-Z][a-zA-Z0-9_]+)\s*\$/, arg);print arg[3] \":\" arg[1] }"); do
+	for _arg in $(echo "${_tmp_args}"|awk "BEGIN{RS=\",\"}{match(\$0, /^\s*([a-zA-Z][ a-zA-Z0-9_]*(\s+\*?|\*?\s+))\s*([a-zA-Z][a-zA-Z0-9_]*)\s*\$/, arg);print arg[3] \":\" arg[1] }"); do
 		[ -z "${_args}" ] || { _args+=", "; }
 		_args+="$(full_qualified_type "${_arg/*:/}" ${_parameterized_types}) ${_arg/:*/}"
 	done

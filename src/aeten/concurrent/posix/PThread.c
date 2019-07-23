@@ -15,7 +15,6 @@
 
 /*!
 @startuml
-!include Object.c
 !include Callable.c
 !include aeten/concurrent/Thread.c
 !include aeten/concurrent/posix/ReentrantLock.c!ReentrantLock

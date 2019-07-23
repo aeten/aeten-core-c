@@ -8,8 +8,6 @@
 !define T SocketChannel
 !include Server.c
 !include SocketChannel.c
-!ifndef aeten_io_ServerSocketChannel
-!define aeten_io_ServerSocketChannel
 namespace aeten.io {
 	interface ServerSocketChannel {
 		+ ServerSocketChannel bind(SocketAddress local, int backlog)
@@ -20,7 +18,6 @@ namespace aeten.io {
 	ServerSocketChannel -|> Server
 	ServerSocketChannel -|> SelectableChannel
 }
-!endif
 @enduml
 */
 

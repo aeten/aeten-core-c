@@ -1,8 +1,7 @@
 #include "Map.h"
 
 /*
-@startuml Map
-!include Object.c
+@startuml(id=Map)
 !include Collection.c
 !include Set.c
 namespace aeten {

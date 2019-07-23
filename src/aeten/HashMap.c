@@ -15,8 +15,7 @@
 #include "HashMapKeySetIterator.h"
 
 /*! \file
-@startuml HashMap
-!include Object.c
+@startuml(id=HashMap)
 !include Map.c
 !include List.c
 namespace aeten {
@@ -36,8 +35,7 @@ namespace aeten {
 }
 @enduml
 
-@startuml HashMapEntry
-!include Object.c
+@startuml(id=HashMapEntry)
 !include MapEntry.c
 !include HashMap.c!HashMap
 namespace aeten {
@@ -49,8 +47,7 @@ namespace aeten {
 }
 @enduml
 
-@startuml HashMapKeySet
-!include Object.c
+@startuml(id=HashMapKeySet)
 !include Set.c
 !include HashMap.c!HashMap
 namespace aeten {
@@ -61,8 +58,7 @@ namespace aeten {
 }
 @enduml
 
-@startuml HashMapKeySetIterator
-!include Object.c
+@startuml(id=HashMapKeySetIterator)
 !include Set.c
 !include HashMap.c!HashMap
 namespace aeten {

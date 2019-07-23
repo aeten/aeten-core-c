@@ -19,7 +19,6 @@
 
 /*!
 @startuml
-!include Object.c
 !include test/Testable.c
 !include aeten/io/posix/SelectorProvider.c
 namespace aeten.io {

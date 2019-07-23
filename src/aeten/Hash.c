@@ -3,7 +3,6 @@
 
 /*!
 @startuml
-!include Object.c
 namespace aeten {
 	interface Hash<T> {
 		+ uint32_t hash(T* value, unsigned bits) <<default>>

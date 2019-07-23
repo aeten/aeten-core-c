@@ -9,7 +9,6 @@
 
 /*
 @startuml
-!include Object.c
 !include Collection.c
 !include Queue.c
 !include concurrent/Condition.c

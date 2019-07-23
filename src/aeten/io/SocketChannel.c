@@ -9,8 +9,6 @@
 !include SocketAddress.c
 !include Readable.c
 !include Writable.c
-!ifndef aeten_io_SocketChannel
-!define aeten_io_SocketChannel
 namespace aeten.io {
 	interface SocketChannel {
 		+ SocketChannel bind(SocketAddress local)
@@ -24,7 +22,6 @@ namespace aeten.io {
 	SocketChannel -|> Writable
 	SocketChannel -|> SelectableChannel
 }
-!endif
 @enduml
 */
 

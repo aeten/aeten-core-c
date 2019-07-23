@@ -4,7 +4,8 @@
 #include "DirectByteBuffer.h"
 
 /*
-@startuml ByteBuffer
+@startuml(id=ByteBuffer)
+!include Buffer.c
 namespace aeten.io {
 	interface ByteBuffer extends Buffer {
 		{static} ByteBuffer allocateDirect(size_t capacity)
@@ -14,19 +15,16 @@ namespace aeten.io {
 		put(uint8_t* src, size_t offset, size_t length)
 		putByte(uint8_t b)
 		ByteBuffer slice()
-		size_t position()
-		size_t capacity()
 		size_t limit()
 		setLimit(size_t newLimit)
-		setPosition(size_t newPosition)
 		bool hasArray()
 		uint8_t* array()
 	}
 }
 @enduml
 
-@startuml DirectByteBuffer
-!include Object.c
+@startuml(id=DirectByteBuffer)
+!include ByteBuffer.c!ByteBuffer
 namespace aeten.io {
 	class DirectByteBuffer implements ByteBuffer {
 		{static} DirectByteBuffer(size_t capacity) <<constructor>>

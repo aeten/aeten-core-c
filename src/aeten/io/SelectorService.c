@@ -9,12 +9,10 @@
 #include "ServerSocketChannel.h"
 
 /*
-@startuml SelectorService
+@startuml(id=SelectorService)
 !include Selector.c
 !include SocketChannel.c
 !include ServerSocketChannel.c
-!ifndef aeten_io_SelectorService
-!define aeten_io_SelectorService
 namespace aeten.io {
 	interface SelectorService {
 		+ SocketChannel openSocketChannel()
@@ -24,7 +22,6 @@ namespace aeten.io {
 		+ {static} SelectorService provider()
 	}
 }
-!endif
 @enduml
 */
 

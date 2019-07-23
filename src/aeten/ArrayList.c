@@ -6,7 +6,6 @@
 
 /*
 @startuml
-!include Object.c
 !include List.c
 namespace aeten {
 	class ArrayList<T extends Object> implements List {

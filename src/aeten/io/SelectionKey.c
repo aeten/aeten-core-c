@@ -3,8 +3,6 @@
 /*
 @startuml
 !include SelectableChannel.c
-!ifndef SelectableChannel
-!define SelectableChannel
 namespace aeten.io {
 	interface SelectionKey {
 		+ {static} OP_ACCEPT: uint8_t <<final>>
@@ -24,7 +22,6 @@ namespace aeten.io {
 		+ bool isConnectable() <<default>>
 	}
 }
-!endif
 @enduml
 */
 

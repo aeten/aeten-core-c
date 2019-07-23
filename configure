@@ -139,7 +139,7 @@ CLASSES=$(for src in ${SRC}; do sed -n '/@startuml/ {$! {: begin; n; /@enduml/b 
 OBJ=$(       ${replace_suffix} '' .o   $(${add_prefix} \\\${output}/    ${CLASSES}))
 HEADERS=$(   ${replace_suffix} '' .h   $(${add_prefix} \\\${generated}/ ${CLASSES}))
 XMI_FILES=$( ${replace_suffix} '' .xmi $(${add_prefix} \\\${output}/    ${CLASSES}))
-PUML_PATH="-Dplantuml.include.path=${SRC_DIR}:${SRC_DIR}/aeten:${GEN_DIR}/${SRC_DIR}:${GEN_DIR}/${SRC_DIR}/aeten"
+PUML_PATH="${SRC_DIR}:${SRC_DIR}/aeten:${GEN_DIR}/${SRC_DIR}:${GEN_DIR}/${SRC_DIR}/aeten:${TEST}"
 
 check -m "Generates ${build_script}" cat - <<EOF '>' ${CURDIR}/${build_script}
 project   = ${PWD##*/}
@@ -181,16 +181,16 @@ $([ -f "${NINJA}" ] && echo include "${NINJA}")
 $(for _src in $(find ${SRC} -name \*.c); do
 	_classes=$(sed -n '/@startuml/ {$! {: begin; n; /@enduml/b end; /class\|interface/ {s,\s*\(class\|interface\)\s\+[a-z.]*\([^ \t<{]\+\)[{< ].*,\2,p}; b begin; : end } }' "${_src}")
 
-	inform "Building target puml2x commands from ${_src}" >&2
-	for _ext in xmi pdf png; do
-		${target} --command puml2x --depends ${_src} "$(echo "${_classes}"|sed 's,^.*,${output}/all/'$(dirname ${_src})/'\0.'${_ext}','|tr '\n' ' ')"
-	done
-
 	for _class in ${_classes}; do
+		inform "Building target puml2x from ${_src}!${_class}" >&2
+		for _ext in xmi pdf png; do
+			${target} --command puml2x --depends ${_src} '${output}/all/'$(dirname ${_src})/${_class}.${_ext}
+		done
 		_xmi="\${output}/all/$(dirname ${_src})/${_class}.xmi"
-		inform "Building target xmi2c command from ${_xmi}" >&2
+		inform "Building target xmi2c from ${_xmi}" >&2
 		${target} --command xmi2c --depends ${_xmi} '${generated}/'$(dirname ${_src})/${_class}.h
 	done
+
 
 	inform "Building target cc from ${_src}" >&2
 	_out='${output}/${triplet}/'$(${replace_suffix} .c .o ${_src})

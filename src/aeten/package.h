@@ -4,7 +4,7 @@
 #include <stdio.h>
 
 
-//! @startuml Array
+//! @startuml(id=Array)
 //! class aeten.Array {
 //! @pause
 typedef struct {

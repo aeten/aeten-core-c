@@ -3,12 +3,10 @@
 #include "SelectorService.h"
 
 /*
-@startuml Selector
+@startuml(id=Selector)
 !include Closeable.c
 !include SelectorService.c
 !include Set.c
-!ifndef aeten_io_Selector
-!define aeten_io_Selector
 namespace aeten.io {
 	interface Selector extends Closeable {
 		+ int select()
@@ -18,7 +16,6 @@ namespace aeten.io {
 		+ SelectorService provider()
 	}
 }
-!endif
 @enduml
 */
 

@@ -6,8 +6,7 @@
 #include "Runnable.h"
 
 /*
-@startuml RunnableTest
-!include Object.c
+@startuml(id=RunnableTest)
 !include Runnable.c
 namespace aeten {
 	class RunnableTest implements Runnable {

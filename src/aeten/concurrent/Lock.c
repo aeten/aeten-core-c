@@ -2,7 +2,6 @@
 
 /*
 @startuml
-!include Object.c
 !include Condition.c
 interface aeten.concurrent.Lock {
 	+ void lock()

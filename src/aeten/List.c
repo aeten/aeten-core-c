@@ -2,7 +2,6 @@
 
 /*!
 @startuml
-!include Object.c
 !include Collection.c
 namespace aeten {
     interface List<T extends Object> extends Collection {

@@ -8,7 +8,6 @@
 // TODO Support IPv6
 /*
 @startuml
-!include Object.c
 !include aeten/io/InetAddress.c
 namespace aeten.io.posix {
 	class InetAddress implements aeten.io.InetAddress {

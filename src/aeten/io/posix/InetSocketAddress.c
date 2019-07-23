@@ -5,7 +5,6 @@
 
 /*!
 @startuml
-!include Object.c
 !include InetAddress.c
 !include aeten/io/InetSocketAddress.c
 namespace aeten.io.posix {

@@ -1,6 +1,4 @@
 #include "ReentrantReadWriteLock.h"
-#include "ReentrantReadLock.h"
-#include "ReentrantWriteLock.h"
 
 #include <pthread.h>
 
@@ -11,8 +9,7 @@
 #include "ReentrantWriteLock.h"
 
 /*!
-@startuml ReentrantReadWriteLock
-!include Object.c
+@startuml(id=ReentrantReadWriteLock)
 !include aeten/concurrent/Condition.c
 !include aeten/concurrent/Lock.c
 !include aeten/concurrent/ReadWriteLock.c
@@ -23,13 +20,13 @@ namespace aeten.concurrent.posix {
 		+ {static} ReentrantReadWriteLock() <<constructor>>
 		# finalize() <<override>>
 		- rw_lock: pthread_rwlock_t
-        - read_lock: ReentrantReadLock
-        - write_lock: ReentrantWriteLock
+		- read_lock: ReentrantReadLock
+		- write_lock: ReentrantWriteLock
 	}
 }
 @enduml
 
-@startuml(id=ReentrantReadLock) ReentrantReadLock
+@startuml(id=ReentrantReadLock)
 !include concurrent/Lock.c
 namespace aeten.concurrent.posix {
 	class ReentrantReadLock implements aeten.concurrent.Lock {
@@ -39,7 +36,7 @@ namespace aeten.concurrent.posix {
 }
 @enduml
 
-@startuml(id=ReentrantWriteLock) ReentrantWriteLock
+@startuml(id=ReentrantWriteLock)
 !include concurrent/Lock.c
 namespace aeten.concurrent.posix {
 	class ReentrantWriteLock implements aeten.concurrent.Lock {

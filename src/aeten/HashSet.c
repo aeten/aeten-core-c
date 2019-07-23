@@ -9,7 +9,6 @@
 
 /*!
 @startuml
-!include Object.c
 !include Set.c
 !include Map.c
 !include HashMap.c

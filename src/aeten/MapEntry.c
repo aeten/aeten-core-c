@@ -2,7 +2,6 @@
 
 /*
 @startuml
-!include Object.c
 namespace aeten {
 	interface MapEntry<K extends Object,V extends Object> {
         + K getKey()

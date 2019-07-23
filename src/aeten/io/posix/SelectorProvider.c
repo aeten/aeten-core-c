@@ -32,28 +32,21 @@
 
 
 /*
-@startuml(id=SelectorProvider) SelectorProvider
-!include Object.c
+@startuml(id=SelectorProvider)
 !include aeten/io/SelectorService.c
-!ifndef aeten_io_posix_SelectorService
-!define aeten_io_posix_SelectorService
 namespace aeten.io.posix {
 	class SelectorProvider implements aeten.io.SelectorService {
 		{static} SelectorProvider() <<constructor>>
 	}
 }
-!endif
 @enduml
 
-@startuml(id=Selector) Selector
-!include Object.c
+@startuml(id=Selector)
 !include HashSet.c
 !include aeten/io/Selector.c
 !include aeten/io/SelectableChannel.c
 !include SelectorProvider.c!SelectorProvider
 !include SelectorProvider.c!SelectKeySet
-!ifndef aeten_io_posix_Selector
-!define aeten_io_posix_Selector
 namespace aeten.io.posix {
 	class Selector implements aeten.io.Selector {
 		+ {static} Selector(SelectorProvider *provider) <<constructor>>
@@ -71,17 +64,13 @@ namespace aeten.io.posix {
 		- exceptfds: fd_set
 	}
 }
-!endif
 @enduml
 
-@startuml(id=SocketChannel) SocketChannel
-!include Object.c
+@startuml(id=SocketChannel)
 !include aeten/io/SocketAddress.c
 !include aeten/io/SocketChannel.c
 !include ArrayList.c
 !include SelectorProvider.c
-!ifndef aeten_io_posix_SocketChannel
-!define aeten_io_posix_SocketChannel
 namespace aeten.io.posix {
 	class SocketChannel implements aeten.io.SocketChannel {
 		+ {static} SocketChannel(SelectorProvider *provider, int fd, struct sockaddr_in* local, struct sockaddr_in* peer) <<constructor>>
@@ -93,16 +82,12 @@ namespace aeten.io.posix {
 		- peer: SocketAddress
 	}
 }
-!endif
 @enduml
 
-@startuml(id=ServerSocketChannel) ServerSocketChannel
-!include Object.c
+@startuml(id=ServerSocketChannel)
 !include aeten/io/ServerSocketChannel.c
 !include ArrayList.c
 !include SelectorProvider.c
-!ifndef aeten_io_posix_ServerSocketChannel
-!define aeten_io_posix_ServerSocketChannel
 namespace aeten.io.posix {
 	class ServerSocketChannel implements aeten.io.ServerSocketChannel {
 		+ {static} ServerSocketChannel(SelectorProvider *provider) <<constructor>>
@@ -114,13 +99,9 @@ namespace aeten.io.posix {
 		- peer_address_size: socklen_t
 	}
 }
-!endif
 @enduml
 
-@startuml(id=SelectKeySet) SelectKeySet
-!ifndef aeten_io_posix_SelectKeySet
-!define aeten_io_posix_SelectKeySet
-!include Object.c
+@startuml(id=SelectKeySet)
 !include aeten/io/SelectionKey.c
 !include Set.c
 !include SelectorProvider.c!Selector
@@ -132,16 +113,12 @@ namespace aeten.io.posix {
 		- selector: aeten_io_posix_Selector*
 	}
 }
-!endif
 @enduml
 
-@startuml(id=SelectKey) SelectKey
-!include Object.c
+@startuml(id=SelectKey)
 !include aeten/io/SelectionKey.c
 !include SelectorProvider.c!Selector
 !include aeten/io/SelectableChannel.c
-!ifndef aeten_io_posix_SelectKey
-!define aeten_io_posix_SelectKey
 namespace aeten.io.posix {
 	class SelectKey implements aeten.io.SelectionKey {
 		+ {static} SelectKey(aeten_io_posix_Selector* selector, SelectableChannel channel, int fd, uint8_t interest, void* attachment) <<constructor>>
@@ -155,13 +132,9 @@ namespace aeten.io.posix {
 		- attachment: void*
 	}
 }
-!endif
 @enduml
 
-@startuml(id=SelectKeySetIterator) SelectKeySetIterator
-!include Object.c
-!ifndef aeten_io_posix_SelectKeySetIterator
-!define aeten_io_posix_SelectKeySetIterator
+@startuml(id=SelectKeySetIterator)
 !include aeten/io/SelectionKey.c
 !include SelectorProvider.c!SelectKeySet
 !include Iterator.c
@@ -175,7 +148,6 @@ namespace aeten.io.posix {
 		- next: SelectKey*
 	}
 }
-!endif
 @enduml
 */
 
